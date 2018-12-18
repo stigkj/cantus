@@ -7,7 +7,7 @@
     }
   },
   "java": {
-    "mainClass": "no.skatteetaten.aurora.gorg.MainKt",
+    "mainClass": "no.skatteetaten.aurora.cantus.MainKt",
     "jvmOpts": "-Dspring.profiles.active=openshift",
     "applicationArgs": ""
   }
