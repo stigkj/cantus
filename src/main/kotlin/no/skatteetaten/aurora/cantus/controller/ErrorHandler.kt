@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.ControllerAdvice
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.context.request.WebRequest
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler
-import java.lang.Exception
 
 @ControllerAdvice
 class ErrorHandler : ResponseEntityExceptionHandler() {
@@ -23,11 +22,16 @@ class ErrorHandler : ResponseEntityExceptionHandler() {
         return handleException(e, request, HttpStatus.NOT_FOUND)
     }
 
+    @ExceptionHandler(BadRequestException::class)
+    fun handleBadRequest(e: BadRequestException, request: WebRequest): ResponseEntity<Any>? {
+        return handleException(e, request, HttpStatus.BAD_REQUEST)
+    }
+
     private fun handleException(e: Exception, request: WebRequest, httpStatus: HttpStatus): ResponseEntity<Any>? {
         val response = mutableMapOf(Pair("errorMessage", e.message))
-        e.cause?.apply { response.put("cause", this.message) }
+        e.cause?.apply { response["cause"] = this.message }
         val headers = HttpHeaders().apply { contentType = MediaType.APPLICATION_JSON }
-        logger.debug("Handle excption", e)
+        logger.debug("Handle exception", e)
         return handleExceptionInternal(e, response, headers, httpStatus, request)
     }
 }

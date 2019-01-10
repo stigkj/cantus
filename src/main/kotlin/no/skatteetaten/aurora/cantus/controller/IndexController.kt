@@ -1,4 +1,4 @@
-package no.skatteetaten.aurora.gorg.controller
+package no.skatteetaten.aurora.cantus.controller
 
 import org.springframework.stereotype.Controller
 import org.springframework.web.bind.annotation.GetMapping

@@ -8,7 +8,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter
 import org.springframework.security.config.http.SessionCreationPolicy
-import org.springframework.security.crypto.password.PasswordEncoder
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.web.authentication.www.BasicAuthenticationEntryPoint
 import org.springframework.security.web.util.matcher.RequestMatcher
 import javax.servlet.http.HttpServletRequest
@@ -18,11 +18,11 @@ import javax.servlet.http.HttpServletRequest
 class WebSecurityConfig(
     @Value("\${management.server.port}") val managementPort: Int,
     @Value("\${cantus.username}") val userName: String,
-    @Value("\${cantus.password}") val password: String,
-    val passwordEncoder: PasswordEncoder,
-    val authEntryPoint: BasicAuthenticationEntryPoint
-
+    @Value("\${cantus.password}") val password: String
 ) : WebSecurityConfigurerAdapter() {
+
+    private val passwordEncoder = BCryptPasswordEncoder()
+    private val basicAuthenticationEntryPoint = BasicAuthenticationEntryPoint().also { it.realmName = "CANTUS" }
 
     @Autowired
     @Throws(Exception::class)
@@ -42,6 +42,6 @@ class WebSecurityConfig(
             .antMatchers("/docs/index.html").permitAll()
             .antMatchers("/").permitAll()
             .antMatchers("/api/**").hasRole("USER")
-            .and().httpBasic().realmName("CANTUS").authenticationEntryPoint(authEntryPoint)
+            .and().httpBasic().authenticationEntryPoint(basicAuthenticationEntryPoint)
     }
 }
