@@ -3,18 +3,16 @@ package no.skatteetaten.aurora.cantus.service
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import no.skatteetaten.aurora.cantus.controller.BadRequestException
-import no.skatteetaten.aurora.cantus.controller.blockNonNullAndHandleError
+import no.skatteetaten.aurora.cantus.controller.SourceSystemException
+import no.skatteetaten.aurora.cantus.controller.blockAndHandleError
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.bodyToMono
-import reactor.core.publisher.toMono
+import reactor.core.publisher.Mono
 import java.util.HashSet
-
-data class DockerRegistryTagResponse(val name: String, val tags: List<String>)
-data class ManifestResponse(val contentType: String, val dockerContentDigest: String, val manifestBody: JsonNode, val statusCode: Int)
 
 val logger = LoggerFactory.getLogger(DockerRegistryService::class.java)
 
@@ -43,14 +41,15 @@ class DockerRegistryService(
     val dockerVersionLabel = "docker_version"
     val dockerContentDigestLabel = "Docker-Content-Digest"
     val createdLabel = "created"
+    lateinit var url: String
 
     fun getImageManifestInformation(
         imageGroup: String,
         imageName: String,
         imageTag: String,
         registryUrl: String? = null
-    ): Map<String, String> {
-        val url = registryUrl ?: dockerRegistryUrl
+    ): ImageManifestDto {
+        url = registryUrl ?: dockerRegistryUrl
 
         validateDockerRegistryUrl(url, dockerRegistryUrlsAllowed)
 
@@ -68,47 +67,79 @@ class DockerRegistryService(
                 .headers {
                     it.accept = dockerManfestAccept
                 }
-        }
-        if (dockerResponse.statusCode == 404) return emptyMap()
+        } ?: throw SourceSystemException(
+            "Manifest not found for image $imageGroup/$imageName:$imageTag",
+            code = "404",
+            sourceSystem = url
+        )
 
-        val dockerContentDigest = dockerResponse.dockerContentDigest
-        val contentType = dockerResponse.contentType
-        val manifestBody = dockerResponse
-            .manifestBody.checkSchemaCompatibility(contentType, imageGroup, imageName)
-
-        return extractManifestInformation(manifestBody, dockerContentDigest)
+        return imageManifestResponseToImageManifest(imageGroup, imageName, dockerResponse)
     }
 
-    fun getImageTags(imageGroup: String, imageName: String, registryUrl: String? = null): List<String> {
-        val url = registryUrl ?: dockerRegistryUrl
+    fun getImageTags(imageGroup: String, imageName: String, registryUrl: String? = null): ImageTagsWithTypeDto {
+        url = registryUrl ?: dockerRegistryUrl
 
         validateDockerRegistryUrl(url, dockerRegistryUrlsAllowed)
 
-        val tagsResponse: DockerRegistryTagResponse = getBodyFromDockerRegistry {
-            logger.debug("Retrieving tags from {url}/v2/{imageGroup}/{imageName}/tags/list", url, imageName)
+        val tagsResponse: ImageTagsResponseDto? = getBodyFromDockerRegistry {
+            logger.debug("Retrieving tags from {url}/v2/{imageGroup}/{imageName}/tags/list", url, imageGroup, imageName)
             it
                 .get()
                 .uri("$url/v2/{imageGroup}/{imageName}/tags/list", imageGroup, imageName)
         }
 
-        return tagsResponse.tags
+        if (tagsResponse == null || tagsResponse.tags.isEmpty()) {
+            throw SourceSystemException(
+                message = "Tags not found for image $imageGroup/$imageName",
+                code = "404",
+                sourceSystem = url
+            )
+        }
+
+        return ImageTagsWithTypeDto(tags = tagsResponse.tags.map {
+            ImageTagTypedDto(it)
+        })
     }
 
-    fun getImageTagsGroupedBySemanticVersion(
+    private final inline fun <reified T : Any> getBodyFromDockerRegistry(
+        fn: (WebClient) -> WebClient.RequestHeadersSpec<*>
+    ): T? = fn(webClient)
+        .exchange()
+        .flatMap { resp ->
+            resp.bodyToMono<T>()
+        }
+        .blockAndHandleError(sourceSystem = url)
+
+    private fun getManifestFromRegistry(
+        fn: (WebClient) -> WebClient.RequestHeadersSpec<*>
+    ): ImageManifestResponseDto? = fn(webClient)
+        .exchange()
+        .flatMap { resp ->
+            val statusCode = resp.rawStatusCode()
+
+            if (statusCode == 404) {
+                resp.bodyToMono<JsonNode>() // Release resource
+                Mono.empty<ImageManifestResponseDto>()
+
+            } else {
+                val contentType = resp.headers().contentType().get().toString()
+                val dockerContentDigest = resp.headers().header(dockerContentDigestLabel).first()
+
+                resp.bodyToMono<JsonNode>().map {
+                    ImageManifestResponseDto(contentType, dockerContentDigest, it)
+                }
+            }
+        }.blockAndHandleError(sourceSystem = url)
+
+    private fun imageManifestResponseToImageManifest(
         imageGroup: String,
         imageName: String,
-        registryUrl: String? = null
-    ): Map<String, List<String>> {
-        val tags = getImageTags(imageGroup, imageName, registryUrl)
+        imageManifestResponse: ImageManifestResponseDto
+    ): ImageManifestDto {
 
-        logger.debug("Tags are grouped by semantic version")
-        return tags.groupBy { ImageTagType.typeOf(it).toString() }
-    }
+        val manifestBody = imageManifestResponse
+            .manifestBody.checkSchemaCompatibility(imageManifestResponse.contentType, imageGroup, imageName)
 
-    private fun extractManifestInformation(
-        manifestBody: JsonNode,
-        dockerContentDigest: String
-    ): Map<String, String> {
         val environmentVariables = manifestBody.getEnvironmentVariablesFromManifest()
 
         val imageManifestEnvInformation = environmentVariables
@@ -118,45 +149,18 @@ class DockerRegistryService(
         val dockerVersion = manifestBody.getVariableFromManifestBody(dockerVersionLabel)
         val created = manifestBody.getVariableFromManifestBody(createdLabel)
 
-        val imageManifestConfigInformation = mapOf(
-            dockerVersionLabel to dockerVersion,
-            dockerContentDigestLabel to dockerContentDigest,
-            createdLabel to created
-        ).mapKeys { it.key.toUpperCase().replace("-", "_") }
-
-        return imageManifestEnvInformation + imageManifestConfigInformation
+        return ImageManifestDto(
+            dockerVersion = dockerVersion,
+            dockerDigest = imageManifestResponse.dockerContentDigest,
+            buildEnded = created,
+            auroraVersion = imageManifestEnvInformation["AURORA_VERSION"],
+            nodeVersion = imageManifestEnvInformation["NODE_VERSION"],
+            appVersion = imageManifestEnvInformation["APP_VERSION"],
+            buildStarted = imageManifestEnvInformation["IMAGE_BUILD_TIME"],
+            java = JavaImageDto.fromEnvMap(imageManifestEnvInformation),
+            jolokiaVersion = imageManifestEnvInformation["JOLOKIA_VERSION"]
+        )
     }
-
-    private fun validateDockerRegistryUrl(urlToValidate: String, alllowedUrls: List<String>) {
-        if (!alllowedUrls.any { allowedUrl: String -> urlToValidate == allowedUrl }) throw BadRequestException("Invalid Docker Registry URL")
-    }
-
-    private final inline fun <reified T : Any> getBodyFromDockerRegistry(
-        fn: (WebClient) -> WebClient.RequestHeadersSpec<*>
-    ): T = fn(webClient)
-        .exchange()
-        .flatMap { resp ->
-            resp.bodyToMono(T::class.java)
-        }
-        .blockNonNullAndHandleError(sourceSystem = "docker")
-
-    private fun getManifestFromRegistry(
-        fn: (WebClient) -> WebClient.RequestHeadersSpec<*>
-    ): ManifestResponse = fn(webClient)
-        .exchange()
-        .flatMap { resp ->
-            val statusCode = resp.statusCode().value()
-            if (statusCode == 404) {
-                ManifestResponse("", "", jacksonObjectMapper().createObjectNode(), statusCode).toMono()
-            } else {
-                val contentType = resp.headers().contentType().get().toString()
-                val dockerContentDigest = resp.headers().header(dockerContentDigestLabel).first()
-
-                resp.bodyToMono<JsonNode>().map {
-                    ManifestResponse(contentType, dockerContentDigest, it, statusCode)
-                }
-            }
-        }.blockNonNullAndHandleError(sourceSystem = "docker")
 
     private fun JsonNode.checkSchemaCompatibility(
         contentType: String,
@@ -177,7 +181,7 @@ class DockerRegistryService(
             webClient
                 .get()
                 .uri(
-                    "$dockerRegistryUrl/v2/{imageGroup}/{imageName}/blobs/sha256:{configDigest}",
+                    "$url/v2/{imageGroup}/{imageName}/blobs/sha256:{configDigest}",
                     imageGroup,
                     imageName,
                     configDigest
@@ -185,17 +189,25 @@ class DockerRegistryService(
                 .headers {
                     it.accept = listOf(MediaType.valueOf("application/json"))
                 }
-        }
+        } ?: throw SourceSystemException(
+            message = "Unable to retrieve V2 manifest from $url/v2/$imageGroup/$imageName/blobs/sha256:$configDigest",
+            code = "404",
+            sourceSystem = url
+        )
+    }
+
+    private fun JsonNode.getV1CompatibilityFromManifest() =
+        jacksonObjectMapper().readTree(this.get("history")?.get(0)?.get("v1Compatibility")?.asText() ?: "")
+
+    private fun JsonNode.getVariableFromManifestBody(label: String) = this.get(label)?.asText() ?: ""
+
+    private fun validateDockerRegistryUrl(urlToValidate: String, alllowedUrls: List<String>) {
+        if (!alllowedUrls.any { allowedUrl: String -> urlToValidate == allowedUrl }) throw BadRequestException("Invalid Docker Registry URL")
     }
 }
-
-private fun JsonNode.getV1CompatibilityFromManifest() =
-    jacksonObjectMapper().readTree(this.get("history")?.get(0)?.get("v1Compatibility")?.asText() ?: "")
 
 private fun JsonNode.getEnvironmentVariablesFromManifest() =
     this.at("/config/Env").associate {
         val (key, value) = it.asText().split("=")
         key to value
     }
-
-private fun JsonNode.getVariableFromManifestBody(label: String) = this.get(label)?.asText() ?: ""

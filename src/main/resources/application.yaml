@@ -18,7 +18,7 @@ logging:
     no.skatteetaten.aurora.cantus: DEBUG
     org:
       hibernate: WARN
-      springframework: WARN
+      springframework: INFO
       apache:
         catalina: WARN
         velocity: WARN

@@ -11,6 +11,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler
 import reactor.core.publisher.Mono
 import reactor.core.publisher.toMono
+import uk.q3c.rest.hal.HalResource
 import java.time.Duration
 
 @ControllerAdvice
@@ -27,11 +28,15 @@ class ErrorHandler : ResponseEntityExceptionHandler() {
     }
 
     private fun handleException(e: Exception, request: WebRequest, httpStatus: HttpStatus): ResponseEntity<Any>? {
-        val response = mutableMapOf(Pair("errorMessage", e.message))
-        e.cause?.apply { response["cause"] = this.message }
+        val auroraResponse = AuroraResponse<HalResource>(
+            success = false,
+            message = e.message ?: "Cantus error",
+            exception = e
+
+        )
         val headers = HttpHeaders().apply { contentType = MediaType.APPLICATION_JSON }
         logger.debug("Handle exception", e)
-        return handleExceptionInternal(e, response, headers, httpStatus, request)
+        return handleExceptionInternal(e, auroraResponse, headers, httpStatus, request)
     }
 }
 
@@ -44,7 +49,6 @@ fun <T> Mono<T>.blockAndHandleError(duration: Duration = Duration.ofSeconds(30),
 
 private fun <T> Mono<T>.handleError(sourceSystem: String?) =
     this.doOnError {
-
         if (it is WebClientResponseException) {
             throw SourceSystemException(
                 message = "Error in response, status:${it.statusCode} message:${it.statusText}",
@@ -53,6 +57,5 @@ private fun <T> Mono<T>.handleError(sourceSystem: String?) =
                 code = it.statusCode.name
             )
         }
-
-        throw SourceSystemException("Error response ${it.message}", it)
+        throw SourceSystemException("Unknown error in response or request", it)
     }
