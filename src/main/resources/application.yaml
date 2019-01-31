@@ -27,7 +27,6 @@ logging:
 spring:
     profiles: local
 
-
 cantus:
     username: cantus
     password: cantus

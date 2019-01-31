@@ -4,8 +4,9 @@ import io.netty.channel.ChannelOption
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory
 import io.netty.handler.timeout.ReadTimeoutHandler
-import no.skatteetaten.aurora.cantus.controller.ImageTagResourceAssembler
+import io.netty.handler.timeout.WriteTimeoutHandler
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpHeaders
@@ -29,14 +30,8 @@ class ApplicationConfig {
     private val logger = LoggerFactory.getLogger(ApplicationConfig::class.java)
 
     @Bean
-    fun imageTagResourceAssembler() = ImageTagResourceAssembler()
-
-    @Bean
-    fun webClient() = webClientBuilder().build()
-
-    fun webClientBuilder(): WebClient.Builder =
-        WebClient
-            .builder()
+    fun webClient(builder: WebClient.Builder, tcpClient: TcpClient) =
+        builder
             .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
             .exchangeStrategies(exchangeStrategies())
             .filter(ExchangeFilterFunction.ofRequestProcessor {
@@ -47,7 +42,7 @@ class ApplicationConfig {
                 logger.debug("HttpRequest method=${it.method()} url=${it.url()} $bearer")
                 it.toMono()
             })
-            .clientConnector(clientConnector())
+            .clientConnector(ReactorClientHttpConnector(HttpClient.from(tcpClient).compress(true))).build()
 
     private fun exchangeStrategies(): ExchangeStrategies {
         val objectMapper = createObjectMapper()
@@ -75,22 +70,23 @@ class ApplicationConfig {
             .build()
     }
 
-    private fun clientConnector(): ReactorClientHttpConnector {
-
+    @Bean
+    fun tcpClient(
+        @Value("\${cantus.httpclient.readTimeout:30000}") readTimeout: Long,
+        @Value("\${cantus.httpclient.writeTimeout:30000}") writeTimeout: Long,
+        @Value("\${cantus.httpclient.connectTimeout:30000}") connectTimeout: Int
+    ): TcpClient {
         val sslProvider = SslProvider.builder().sslContext(
             SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE)
         ).defaultConfiguration(SslProvider.DefaultConfigurationType.NONE).build()
 
-        val tcpClient = TcpClient.create()
+        return TcpClient.create()
+            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout)
             .secure(sslProvider)
-            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000)
             .doOnConnected { connection ->
-                connection.addHandlerLast(ReadTimeoutHandler(30000.toLong(), TimeUnit.MILLISECONDS))
+                connection
+                    .addHandlerLast(ReadTimeoutHandler(readTimeout, TimeUnit.MILLISECONDS))
+                    .addHandlerLast(WriteTimeoutHandler(writeTimeout, TimeUnit.MILLISECONDS))
             }
-
-        val httpClient = HttpClient.from(tcpClient)
-        httpClient.compress(true)
-
-        return ReactorClientHttpConnector(httpClient)
     }
 }

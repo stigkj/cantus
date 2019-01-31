@@ -14,6 +14,8 @@ import reactor.core.publisher.toMono
 import uk.q3c.rest.hal.HalResource
 import java.time.Duration
 
+val blockTimeout: Long = 30
+
 @ControllerAdvice
 class ErrorHandler : ResponseEntityExceptionHandler() {
 
@@ -40,22 +42,29 @@ class ErrorHandler : ResponseEntityExceptionHandler() {
     }
 }
 
-fun <T> Mono<T>.blockNonNullAndHandleError(duration: Duration = Duration.ofSeconds(30), sourceSystem: String? = null) =
+fun <T> Mono<T>.blockNonNullAndHandleError(
+    duration: Duration = Duration.ofSeconds(blockTimeout),
+    sourceSystem: String? = null
+) =
     this.switchIfEmpty(SourceSystemException("Empty response", sourceSystem = sourceSystem).toMono())
         .blockAndHandleError(duration, sourceSystem)!!
 
-fun <T> Mono<T>.blockAndHandleError(duration: Duration = Duration.ofSeconds(30), sourceSystem: String? = null) =
+fun <T> Mono<T>.blockAndHandleError(
+    duration: Duration = Duration.ofSeconds(blockTimeout),
+    sourceSystem: String? = null
+) =
     this.handleError(sourceSystem).toMono().block(duration)
 
 private fun <T> Mono<T>.handleError(sourceSystem: String?) =
     this.doOnError {
-        if (it is WebClientResponseException) {
-            throw SourceSystemException(
+        when (it) {
+            is WebClientResponseException -> throw SourceSystemException(
                 message = "Error in response, status:${it.statusCode} message:${it.statusText}",
                 cause = it,
                 sourceSystem = sourceSystem,
                 code = it.statusCode.name
             )
+            is SourceSystemException -> throw it
+            else -> throw CantusException("Unknown error in response or request", it)
         }
-        throw SourceSystemException("Unknown error in response or request", it)
     }

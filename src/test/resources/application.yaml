@@ -11,3 +11,8 @@ logging:
   pattern:
     console: "%d [%thread] %-5level %logger:%L %X - %msg %n%rEx{full}"
 
+cantus:
+    docker:
+        url: "docker.com"
+        urlsallowed: "docker.com"
+

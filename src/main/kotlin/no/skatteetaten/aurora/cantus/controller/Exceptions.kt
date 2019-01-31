@@ -10,7 +10,7 @@ open class CantusException(
     message: String,
     cause: Throwable? = null,
     val code: String = ""
-) : java.lang.RuntimeException(message, cause)
+) : RuntimeException(message, cause)
 
 class SourceSystemException(
     message: String,

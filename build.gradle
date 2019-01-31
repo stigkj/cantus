@@ -1,46 +1,48 @@
 buildscript {
-  ext.kotlin_version = "1.3.11"
   ext.repos = {
-    jcenter()
     mavenLocal()
-    mavenCentral()
     maven {
       url "http://aurora/nexus/content/groups/public/"
     }
+    mavenCentral()
   }
   repositories repos
   dependencies {
     classpath(
         'no.skatteetaten.aurora.gradle.plugins:aurora-gradle-plugin:1.3.0',
-        'org.springframework.boot:spring-boot-gradle-plugin:2.1.1.RELEASE'
     )
   }
 }
 
 plugins {
+  id 'org.jetbrains.kotlin.jvm' version '1.3.11'
   id 'org.jetbrains.kotlin.plugin.spring' version '1.3.11'
   id 'org.springframework.boot' version '2.1.1.RELEASE'
   id 'org.jlleitschuh.gradle.ktlint' version '6.2.0'
   id 'com.github.ben-manes.versions' version '0.20.0'
-  id 'org.jetbrains.kotlin.jvm' version '1.3.11'
+  id "com.gorylenko.gradle-git-properties" version "1.4.17"
 }
 
 repositories repos
 
 ext.aurora = [
     requireStaging   : false,
-    applySpockSupport: false
+    applySpockSupport: false,
+    checkstyleConfigVersion: "2.1.0",
+    setProjectVersionFromGit: false
 ]
 
 apply plugin: 'io.spring.dependency-management'
 apply plugin: 'no.skatteetaten.plugins.aurora'
-apply plugin: 'org.jlleitschuh.gradle.ktlint'
 
 [jar, distZip]*.enabled = true
 [bootJar, distTar, bootDistTar, bootDistZip]*.enabled = false
 configurations.archives.artifacts.removeIf { !it.archiveTask.enabled }
 
-group = 'no.skatteetaten.aurora'
+
+version "${version}"
+
+group = groupId
 
 dependencyManagement {
   imports {
@@ -55,11 +57,9 @@ dependencies {
       "com.fasterxml.jackson.module:jackson-module-kotlin",
       "no.skatteetaten.aurora.springboot:aurora-spring-boot2-starter:1.4.1",
       "org.springframework.boot:spring-boot-starter-web",
-      "org.springframework.boot:spring-boot-starter-security",
       "org.springframework.boot:spring-boot-starter-actuator",
       "org.springframework.boot:spring-boot-starter-webflux",
       "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
-
   )
 
   [
@@ -70,7 +70,6 @@ dependencies {
       'io.mockk:mockk:1.8.9',
       'com.willowtreeapps.assertk:assertk:0.10',
       'org.springframework.cloud:spring-cloud-starter-contract-stub-runner',
-      'org.springframework.security:spring-security-test',
       'io.projectreactor:reactor-test',
       'com.nhaarman:mockito-kotlin:1.6.0'
   ].each { testCompile(it) { exclude group: 'junit' } }
@@ -102,9 +101,6 @@ compileTestKotlin {
 
 test {
   useJUnitPlatform()
-}
-task wrapper(type: Wrapper) {
-  gradleVersion = '5.1'
 }
 
 ktlint {
