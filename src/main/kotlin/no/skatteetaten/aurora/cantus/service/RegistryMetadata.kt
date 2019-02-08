@@ -10,10 +10,10 @@ data class RegistryMetadata(
     val apiSchema: String,
     val authenticationMethod: AuthenticationMethod,
     val isInternal: Boolean,
-    val port: Int
+    val port: String? = null
 ) {
     val fullRegistryUrl: String
-        get() = "$apiSchema://$registry:$port/v2"
+        get() = "$apiSchema://$registry${if (port.isNullOrEmpty()) "" else ":$port"}/v2"
 }
 
 @Component
@@ -26,10 +26,11 @@ class RegistryMetadataResolver(
         val isInternalRegistry = internalRegistryAddresses.any { internalAddress -> registry == internalAddress }
         val authMethod = if (isInternalRegistry) AuthenticationMethod.KUBERNETES_TOKEN else AuthenticationMethod.NONE
         val apiSchema = if (!isInternalRegistry) "https" else "http"
-        val port = registry.split(":").last().toIntOrNull() ?: -1
+        val registryAndPort = registry.split(":")
+        val port = registryAndPort.getOrNull(1)
 
         return RegistryMetadata(
-            registry = registry,
+            registry = registryAndPort.first(),
             apiSchema = apiSchema,
             authenticationMethod = authMethod,
             isInternal = isInternalRegistry,

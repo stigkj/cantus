@@ -14,5 +14,7 @@ logging:
 cantus:
     docker:
         url: "docker.com"
-        urlsallowed: "docker.com"
+        urlsallowed: "docker.com,noBearerToken.com,allowedurl.no"
+        internal:
+            urls: "docker.com,vg.no"
 

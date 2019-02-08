@@ -72,9 +72,9 @@ class ApplicationConfig {
 
     @Bean
     fun tcpClient(
-        @Value("\${cantus.httpclient.readTimeout:30000}") readTimeout: Long,
-        @Value("\${cantus.httpclient.writeTimeout:30000}") writeTimeout: Long,
-        @Value("\${cantus.httpclient.connectTimeout:30000}") connectTimeout: Int
+        @Value("\${cantus.httpclient.readTimeout:5000}") readTimeout: Long,
+        @Value("\${cantus.httpclient.writeTimeout:5000}") writeTimeout: Long,
+        @Value("\${cantus.httpclient.connectTimeout:5000}") connectTimeout: Int
     ): TcpClient {
         val sslProvider = SslProvider.builder().sslContext(
             SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE)

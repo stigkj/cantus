@@ -2,19 +2,21 @@ package no.skatteetaten.aurora.cantus.controller
 
 class BadRequestException(
     message: String,
-    cause: Throwable? = null,
-    code: String = "400"
-) : CantusException(message, cause, code)
+    cause: Throwable? = null
+) : CantusException(message, cause)
+
+class ForbiddenException(
+    message: String,
+    cause: Throwable? = null
+) : CantusException(message, cause)
 
 open class CantusException(
     message: String,
-    cause: Throwable? = null,
-    val code: String = ""
+    cause: Throwable? = null
 ) : RuntimeException(message, cause)
 
 class SourceSystemException(
     message: String,
     cause: Throwable? = null,
-    code: String = "404",
     val sourceSystem: String? = null
-) : CantusException(message, cause, code)
+) : CantusException(message, cause)

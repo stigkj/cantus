@@ -51,10 +51,10 @@ class ImageRepoDtoAssembler(
     }
 
     private fun validateDockerRegistryUrl(urlToValidate: String, allowedUrls: List<String>): String {
-        if (!allowedUrls.any { allowedUrl -> urlToValidate == allowedUrl }) {
-            throw BadRequestException("Invalid Docker Registry URL")
-        } else {
+        if (allowedUrls.any { allowedUrl -> urlToValidate == allowedUrl }) {
             return urlToValidate
+        } else {
+            throw BadRequestException("Invalid Docker Registry URL")
         }
     }
 }

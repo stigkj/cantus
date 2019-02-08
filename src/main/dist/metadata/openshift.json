@@ -9,6 +9,6 @@
   "java": {
     "mainClass": "no.skatteetaten.aurora.cantus.MainKt",
     "jvmOpts": "-Dspring.profiles.active=openshift",
-    "applicationArgs": ""
+    "applicationArgs": "--logging.config=${LOGBACK_FILE}"
   }
 }

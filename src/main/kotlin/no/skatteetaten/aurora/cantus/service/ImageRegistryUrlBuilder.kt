@@ -1,7 +1,9 @@
 package no.skatteetaten.aurora.cantus.service
 
 import no.skatteetaten.aurora.cantus.controller.ImageRepoCommand
+import org.springframework.stereotype.Component
 
+@Component
 class ImageRegistryUrlBuilder {
     fun createTagsUrl(
         imageRepoCommand: ImageRepoCommand,
@@ -23,7 +25,7 @@ class ImageRegistryUrlBuilder {
         imageRepoCommand: ImageRepoCommand,
         registryMetadata: RegistryMetadata
     ): String {
-        logger.debug("Retrieving type=config from schemaVersion=v2 url=${registryMetadata.fullRegistryUrl} image=${imageRepoCommand.manifestRepo}")
+        logger.debug("Retrieving type=config from schemaVersion=v1 url=${registryMetadata.fullRegistryUrl} image=${imageRepoCommand.manifestRepo}")
         return "${registryMetadata.fullRegistryUrl}/{imageGroup}/{imageName}/manifests/{imageTag}"
     }
 }
