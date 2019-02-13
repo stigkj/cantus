@@ -1,0 +1,219 @@
+{
+  "items": [
+    {
+      "group": "AURORA_SNAPSHOT_VERSION",
+      "tagResource": [
+        {
+          "name": "SNAPSHOT--dev-20170912.120730-1-b1.4.1-wingnut-8.141.1",
+          "type": "AURORA_SNAPSHOT_VERSION",
+          "_links": {
+            "self": {
+              "href": ""
+            }
+          },
+          "_embedded": {}
+        }
+      ],
+      "itemsInGroup": 1,
+      "_links": {
+        "self": {
+          "href": ""
+        }
+      },
+      "_embedded": {}
+    },
+    {
+      "group": "SNAPSHOT",
+      "tagResource": [
+        {
+          "name": "dev-SNAPSHOT",
+          "type": "SNAPSHOT",
+          "_links": {
+            "self": {
+              "href": ""
+            }
+          },
+          "_embedded": {}
+        }
+      ],
+      "itemsInGroup": 1,
+      "_links": {
+        "self": {
+          "href": ""
+        }
+      },
+      "_embedded": {}
+    },
+    {
+      "group": "LATEST",
+      "tagResource": [
+        {
+          "name": "latest",
+          "type": "LATEST",
+          "_links": {
+            "self": {
+              "href": ""
+            }
+          },
+          "_embedded": {}
+        }
+      ],
+      "itemsInGroup": 1,
+      "_links": {
+        "self": {
+          "href": ""
+        }
+      },
+      "_embedded": {}
+    },
+    {
+      "group": "MAJOR",
+      "tagResource": [
+        {
+          "name": "1",
+          "type": "MAJOR",
+          "_links": {
+            "self": {
+              "href": ""
+            }
+          },
+          "_embedded": {}
+        }
+      ],
+      "itemsInGroup": 1,
+      "_links": {
+        "self": {
+          "href": ""
+        }
+      },
+      "_embedded": {}
+    },
+    {
+      "group": "MINOR",
+      "tagResource": [
+        {
+          "name": "1.0",
+          "type": "MINOR",
+          "_links": {
+            "self": {
+              "href": ""
+            }
+          },
+          "_embedded": {}
+        },
+        {
+          "name": "1.1",
+          "type": "MINOR",
+          "_links": {
+            "self": {
+              "href": ""
+            }
+          },
+          "_embedded": {}
+        },
+        {
+          "name": "1.2",
+          "type": "MINOR",
+          "_links": {
+            "self": {
+              "href": ""
+            }
+          },
+          "_embedded": {}
+        }
+      ],
+      "itemsInGroup": 3,
+      "_links": {
+        "self": {
+          "href": ""
+        }
+      },
+      "_embedded": {}
+    },
+    {
+      "group": "BUGFIX",
+      "tagResource": [
+        {
+          "name": "1.0.0",
+          "type": "BUGFIX",
+          "_links": {
+            "self": {
+              "href": ""
+            }
+          },
+          "_embedded": {}
+        },
+        {
+          "name": "1.0.1",
+          "type": "BUGFIX",
+          "_links": {
+            "self": {
+              "href": ""
+            }
+          },
+          "_embedded": {}
+        },
+        {
+          "name": "1.1.0",
+          "type": "BUGFIX",
+          "_links": {
+            "self": {
+              "href": ""
+            }
+          },
+          "_embedded": {}
+        }
+      ],
+      "itemsInGroup": 3,
+      "_links": {
+        "self": {
+          "href": ""
+        }
+      },
+      "_embedded": {}
+    },
+    {
+      "group": "AURORA_VERSION",
+      "tagResource": [
+        {
+          "name": "1.0.1-b1.4.1-wingnut-8.141.1",
+          "type": "AURORA_VERSION",
+          "_links": {
+            "self": {
+              "href": ""
+            }
+          },
+          "_embedded": {}
+        },
+        {
+          "name": "1.1.0-b1.4.1-wingnut-8.141.1",
+          "type": "AURORA_VERSION",
+          "_links": {
+            "self": {
+              "href": ""
+            }
+          },
+          "_embedded": {}
+        }
+      ],
+      "itemsInGroup": 2,
+      "_links": {
+        "self": {
+          "href": ""
+        }
+      },
+      "_embedded": {}
+    }
+  ],
+  "success": true,
+  "message": "Successfully retrieved tags grouped by semantic version for image no_skatteetaten_aurora_demo/whoami",
+  "exception": null,
+  "count": 7,
+  "_links": {
+    "self": {
+      "href": ""
+    }
+  },
+  "_embedded": {},
+  "item": null
+}
