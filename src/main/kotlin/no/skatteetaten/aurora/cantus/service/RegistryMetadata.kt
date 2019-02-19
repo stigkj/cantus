@@ -21,20 +21,32 @@ class RegistryMetadataResolver(
     @Value("\${cantus.docker.internal.urls}") val internalRegistryAddresses: List<String>
 ) {
 
+    fun http(registry: String) = RegistryMetadata(
+        registry = registry,
+        apiSchema = "http",
+        authenticationMethod = AuthenticationMethod.KUBERNETES_TOKEN,
+        isInternal = true
+    )
+
+    fun https(registry: String) = RegistryMetadata(
+        registry = registry,
+        apiSchema = "https",
+        authenticationMethod = AuthenticationMethod.NONE,
+        isInternal = false
+    )
+
     fun getMetadataForRegistry(registry: String): RegistryMetadata {
 
-        val isInternalRegistry = internalRegistryAddresses.any { internalAddress -> registry == internalAddress }
-        val authMethod = if (isInternalRegistry) AuthenticationMethod.KUBERNETES_TOKEN else AuthenticationMethod.NONE
-        val apiSchema = if (!isInternalRegistry) "https" else "http"
-        val registryAndPort = registry.split(":")
-        val port = registryAndPort.getOrNull(1)
+        val ipV4WithPortRegex =
+            "^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]):[0-9]{1,4}\$".toRegex()
 
-        return RegistryMetadata(
-            registry = registryAndPort.first(),
-            apiSchema = apiSchema,
-            authenticationMethod = authMethod,
-            isInternal = isInternalRegistry,
-            port = port
-        )
+        val isInternal =
+            internalRegistryAddresses.any { it == registry } || registry.matches(ipV4WithPortRegex)
+
+        return if (isInternal) {
+            this.http(registry)
+        } else {
+            this.https(registry)
+        }
     }
 }

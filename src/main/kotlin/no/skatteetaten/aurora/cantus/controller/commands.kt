@@ -54,7 +54,7 @@ class ImageRepoDtoAssembler(
         if (allowedUrls.any { allowedUrl -> urlToValidate == allowedUrl }) {
             return urlToValidate
         } else {
-            throw BadRequestException("Invalid Docker Registry URL")
+            throw BadRequestException("Invalid Docker Registry URL url=$urlToValidate")
         }
     }
 }

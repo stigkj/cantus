@@ -22,7 +22,7 @@ data class ImageTagResource(
     val dockerVersion: String,
     val dockerDigest: String,
     val java: JavaImage? = null,
-    val node: NodeImage? = null
+    val node: NodeJsImage? = null
 ) : HalResource()
 
 data class JavaImage(
@@ -69,16 +69,16 @@ data class ImageBuildTimeline(
     }
 }
 
-data class NodeImage(
-    val nodeVersion: String
+data class NodeJsImage(
+    val nodeJsVersion: String
 ) {
     companion object {
-        fun fromDto(dto: ImageManifestDto): NodeImage? {
+        fun fromDto(dto: ImageManifestDto): NodeJsImage? {
             if (dto.nodeVersion == null) {
                 return null
             }
 
-            return NodeImage(dto.nodeVersion)
+            return NodeJsImage(dto.nodeVersion)
         }
     }
 }
@@ -114,7 +114,7 @@ class ImageTagResourceAssembler {
                     appVersion = manifestDto.appVersion,
                     auroraVersion = manifestDto.auroraVersion,
                     timeline = ImageBuildTimeline.fromDto(manifestDto),
-                    node = NodeImage.fromDto(manifestDto)
+                    node = NodeJsImage.fromDto(manifestDto)
                 )
             )
         )
