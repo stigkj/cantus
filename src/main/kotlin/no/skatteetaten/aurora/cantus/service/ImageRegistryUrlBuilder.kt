@@ -1,7 +1,10 @@
 package no.skatteetaten.aurora.cantus.service
 
+import mu.KotlinLogging
 import no.skatteetaten.aurora.cantus.controller.ImageRepoCommand
 import org.springframework.stereotype.Component
+
+private val logger = KotlinLogging.logger {}
 
 @Component
 class ImageRegistryUrlBuilder {
@@ -25,7 +28,7 @@ class ImageRegistryUrlBuilder {
         imageRepoCommand: ImageRepoCommand,
         registryMetadata: RegistryMetadata
     ): String {
-        logger.debug("Retrieving type=config from schemaVersion=v1 url=${registryMetadata.fullRegistryUrl} image=${imageRepoCommand.manifestRepo}")
+        logger.debug("Retrieving type=manifest from schemaVersion=v1 url=${registryMetadata.fullRegistryUrl} image=${imageRepoCommand.manifestRepo}")
         return "${registryMetadata.fullRegistryUrl}/{imageGroup}/{imageName}/manifests/{imageTag}"
     }
 }

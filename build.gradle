@@ -60,7 +60,8 @@ dependencies {
       "org.springframework.boot:spring-boot-starter-web",
       "org.springframework.boot:spring-boot-starter-actuator",
       "org.springframework.boot:spring-boot-starter-webflux",
-      "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+      "org.jetbrains.kotlin:kotlin-stdlib-jdk8",
+      "io.github.microutils:kotlin-logging:1.6.24"
   )
 
   [

@@ -1,5 +1,6 @@
 package no.skatteetaten.aurora.cantus.controller
 
+import mu.KotlinLogging
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -15,7 +16,8 @@ import reactor.core.publisher.toMono
 import uk.q3c.rest.hal.HalResource
 import java.time.Duration
 
-val blockTimeout: Long = 30
+private val blockTimeout: Long = 30
+private val errorLogger = KotlinLogging.logger {}
 
 @ControllerAdvice
 class ErrorHandler : ResponseEntityExceptionHandler() {
@@ -43,7 +45,8 @@ class ErrorHandler : ResponseEntityExceptionHandler() {
             exception = e
         )
         val headers = HttpHeaders().apply { contentType = MediaType.APPLICATION_JSON }
-        logger.debug("Handle exception", e)
+
+        errorLogger.debug(e) { "An exception has occurred with status=${httpStatus.value()} message=${e.message}" }
         return handleExceptionInternal(e, auroraResponse, headers, httpStatus, request)
     }
 }

@@ -2,13 +2,13 @@ package no.skatteetaten.aurora.cantus.service
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import mu.KotlinLogging
 import no.skatteetaten.aurora.cantus.controller.ForbiddenException
 import no.skatteetaten.aurora.cantus.controller.ImageRepoCommand
 import no.skatteetaten.aurora.cantus.controller.SourceSystemException
 import no.skatteetaten.aurora.cantus.controller.blockAndHandleError
 import no.skatteetaten.aurora.cantus.controller.handleError
 import no.skatteetaten.aurora.cantus.controller.handleStatusCodeError
-import org.slf4j.LoggerFactory
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.reactive.function.client.WebClient
@@ -16,7 +16,7 @@ import org.springframework.web.reactive.function.client.bodyToMono
 import java.time.Duration
 import java.util.HashSet
 
-val logger = LoggerFactory.getLogger(DockerRegistryService::class.java)
+private val logger = KotlinLogging.logger {}
 
 @Service
 class DockerRegistryService(
