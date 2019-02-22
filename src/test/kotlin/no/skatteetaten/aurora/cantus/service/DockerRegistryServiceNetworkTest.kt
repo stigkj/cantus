@@ -39,7 +39,7 @@ class DockerRegistryServiceNetworkTest {
     private val applicationConfig = ApplicationConfig()
 
     private val dockerService = DockerRegistryService(
-        applicationConfig.webClient(WebClient.builder(), applicationConfig.tcpClient(100, 100, 100)),
+        applicationConfig.webClient(WebClient.builder(), applicationConfig.tcpClient(100, 100, 100, null)),
         RegistryMetadataResolver(listOf(imageRepoCommand.registry)),
         ImageRegistryUrlBuilder()
     )
