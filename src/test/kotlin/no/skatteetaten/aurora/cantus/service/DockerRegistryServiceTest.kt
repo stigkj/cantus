@@ -82,7 +82,7 @@ class DockerRegistryServiceTest {
 
             assert(exception).isNotNull {
                 assert(it.actual::class).isEqualTo(SourceSystemException::class)
-                assert(it.actual.message).isEqualTo("Tags not found for image ${imageRepoCommand.defaultRepo}")
+                assert(it.actual.message).isEqualTo("Resource could not be found status=404 message=Not Found")
             }
         }
     }

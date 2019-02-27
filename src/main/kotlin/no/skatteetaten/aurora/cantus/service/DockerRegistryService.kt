@@ -3,12 +3,14 @@ package no.skatteetaten.aurora.cantus.service
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import mu.KotlinLogging
+import no.skatteetaten.aurora.cantus.controller.BadRequestException
 import no.skatteetaten.aurora.cantus.controller.ForbiddenException
 import no.skatteetaten.aurora.cantus.controller.ImageRepoCommand
 import no.skatteetaten.aurora.cantus.controller.SourceSystemException
 import no.skatteetaten.aurora.cantus.controller.blockAndHandleError
 import no.skatteetaten.aurora.cantus.controller.handleError
 import no.skatteetaten.aurora.cantus.controller.handleStatusCodeError
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.reactive.function.client.WebClient
@@ -37,7 +39,7 @@ class DockerRegistryService(
         "JAVA_VERSION_MAJOR",
         "JAVA_VERSION_MINOR",
         "JAVA_VERSION_BUILD",
-        "NODE_VERSION"
+        "NODEJS_VERSION"
     )
 
     val dockerVersionLabel = "docker_version"
@@ -48,6 +50,8 @@ class DockerRegistryService(
         imageRepoCommand: ImageRepoCommand
     ): ImageManifestDto {
         val url = imageRepoCommand.registry
+
+        if (imageRepoCommand.imageTag.isNullOrEmpty()) throw BadRequestException("Invalid url=${imageRepoCommand.fullRepoCommand}")
 
         val registryMetadata = registryMetadataResolver.getMetadataForRegistry(url)
 
@@ -91,7 +95,7 @@ class DockerRegistryService(
 
         if (tagsResponse == null || tagsResponse.tags.isEmpty()) {
             throw SourceSystemException(
-                message = "Tags not found for image ${imageRepoCommand.defaultRepo}",
+                message = "Resource could not be found status=${HttpStatus.NOT_FOUND.value()} message=${HttpStatus.NOT_FOUND.reasonPhrase}",
                 sourceSystem = url
             )
         }
@@ -166,8 +170,8 @@ class DockerRegistryService(
         val environmentVariables = manifestBody.getEnvironmentVariablesFromManifest()
 
         val imageManifestEnvInformation = environmentVariables
-            .filter { manifestEnvLabels.contains(it.key) }
             .mapKeys { it.key.toUpperCase() }
+            .filter { manifestEnvLabels.contains(it.key) }
 
         val dockerVersion = manifestBody.getVariableFromManifestBody(dockerVersionLabel)
         val created = manifestBody.getVariableFromManifestBody(createdLabel)
@@ -177,7 +181,7 @@ class DockerRegistryService(
             dockerDigest = imageManifestResponse.dockerContentDigest,
             buildEnded = created,
             auroraVersion = imageManifestEnvInformation["AURORA_VERSION"],
-            nodeVersion = imageManifestEnvInformation["NODE_VERSION"],
+            nodeVersion = imageManifestEnvInformation["NODEJS_VERSION"],
             appVersion = imageManifestEnvInformation["APP_VERSION"],
             buildStarted = imageManifestEnvInformation["IMAGE_BUILD_TIME"],
             java = JavaImageDto.fromEnvMap(imageManifestEnvInformation),

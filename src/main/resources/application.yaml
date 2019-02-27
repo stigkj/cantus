@@ -9,19 +9,19 @@ spring:
         active: local
 
 aurora:
-  starter:
-    headerfilter:
-      enabled: false
+    starter:
+        headerfilter:
+            enabled: false
 
 logging:
-  level:
-    no.skatteetaten.aurora.cantus: DEBUG
-    org:
-      hibernate: WARN
-      springframework: INFO
-      apache:
-        catalina: WARN
-        velocity: WARN
+    level:
+        no.skatteetaten.aurora.cantus: DEBUG
+        org:
+            hibernate: WARN
+            springframework: INFO
+            apache:
+                catalina: WARN
+                velocity: WARN
 
 ---
 spring:
@@ -40,9 +40,9 @@ management:
 
 logging:
     pattern:
-      console: "%d [%-9.9thread] %highlight(%-5level) %cyan(%logger:%L) %X - %msg %n%rEx{full}"
+        console: "%d [%-9.9thread] %highlight(%-5level) %cyan(%logger:%L) %X - %msg %n%rEx{full}"
     # add mokey.openshift.token to ~/.spring-boot-devtools.properties
 
 ---
 spring:
-  profiles: openshift
+    profiles: openshift

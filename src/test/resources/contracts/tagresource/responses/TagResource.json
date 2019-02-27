@@ -41,57 +41,7 @@
       "_embedded": {}
     },
     {
-      "name": "1.0",
-      "type": "MINOR",
-      "_links": {
-        "self": {
-          "href": ""
-        }
-      },
-      "_embedded": {}
-    },
-    {
       "name": "1.0.0",
-      "type": "BUGFIX",
-      "_links": {
-        "self": {
-          "href": ""
-        }
-      },
-      "_embedded": {}
-    },
-    {
-      "name": "1.0.1",
-      "type": "BUGFIX",
-      "_links": {
-        "self": {
-          "href": ""
-        }
-      },
-      "_embedded": {}
-    },
-    {
-      "name": "1.0.1-b1.4.1-wingnut-8.141.1",
-      "type": "AURORA_VERSION",
-      "_links": {
-        "self": {
-          "href": ""
-        }
-      },
-      "_embedded": {}
-    },
-    {
-      "name": "1.1",
-      "type": "MINOR",
-      "_links": {
-        "self": {
-          "href": ""
-        }
-      },
-      "_embedded": {}
-    },
-    {
-      "name": "1.1.0",
       "type": "BUGFIX",
       "_links": {
         "self": {
@@ -111,16 +61,6 @@
       "_embedded": {}
     },
     {
-      "name": "1.1.1",
-      "type": "BUGFIX",
-      "_links": {
-        "self": {
-          "href": ""
-        }
-      },
-      "_embedded": {}
-    },
-    {
       "name": "1.2",
       "type": "MINOR",
       "_links": {
@@ -131,15 +71,16 @@
       "_embedded": {}
     }
   ],
+  "failure": [],
   "success": true,
-  "message": "Successfully retrieved tags for image no_skatteetaten_aurora_demo/whoami",
-  "exception": null,
-  "count": 199,
+  "message": "Success",
+  "failureCount": 0,
+  "successCount": 7,
+  "count": 7,
   "_links": {
     "self": {
       "href": ""
     }
   },
-  "_embedded": {},
-  "item": null
+  "_embedded": {}
 }

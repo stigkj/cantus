@@ -3,7 +3,7 @@ package no.skatteetaten.aurora.cantus.controller
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 
-data class ImageRepoCommand(
+data class ImageRepoCommandOld(
     val registry: String,
     val imageGroup: String,
     val imageName: String,
@@ -14,8 +14,6 @@ data class ImageRepoCommand(
         get() = listOf(imageGroup, imageName, imageTag).joinToString("/")
     val defaultRepo: String
         get() = listOf(imageGroup, imageName).joinToString("/")
-    val fullRepoCommand: String
-        get() = listOf(registry, imageGroup, imageName, imageTag).joinToString("/")
     val mappedTemplateVars: Map<String, String?>
         get() = mapOf(
             "imageGroup" to imageGroup,
@@ -24,33 +22,24 @@ data class ImageRepoCommand(
         )
 }
 
-data class ImageRepo(
-    val registry: String? = null,
-    val imageGroup: String? = null,
-    val imageName: String? = null,
-    val imageTag: String? = null
-)
-
 @Component
-class ImageRepoCommandAssembler(
+class ImageRepoDtoAssembler(
+    @Value("\${cantus.docker.url}") val registryUrl: String,
     @Value("\${cantus.docker.urlsallowed}") val allowedRegistryUrls: List<String>
 ) {
     fun createAndValidateCommand(
-        url: String,
+        overrideRegistryUrl: String?,
+        name: String,
+        namespace: String,
+        tag: String? = null,
         bearerToken: String? = null
-    ): ImageRepoCommand? {
-        val (overrideRegistryUrl, namespace, name, tag) = url.toImageRepo()
-
-        if (namespace.isNullOrEmpty() || name.isNullOrEmpty()) return null
-
-        val validatedRegistryUrl =
-            if (overrideRegistryUrl.isNullOrEmpty()) return null
-            else {
-                validateDockerRegistryUrl(
-                    urlToValidate = overrideRegistryUrl,
-                    allowedUrls = allowedRegistryUrls
-                )
-            }
+    ): ImageRepoCommand {
+        val validatedRegistryUrl = if (overrideRegistryUrl != null) {
+            validateDockerRegistryUrl(
+                urlToValidate = overrideRegistryUrl,
+                allowedUrls = allowedRegistryUrls
+            )
+        } else registryUrl
 
         return ImageRepoCommand(
             registry = validatedRegistryUrl,
@@ -67,19 +56,5 @@ class ImageRepoCommandAssembler(
         } else {
             throw BadRequestException("Invalid Docker Registry URL url=$urlToValidate")
         }
-    }
-
-    private fun String.toImageRepo(): ImageRepo {
-        val repoVariables = this.split("/")
-        val repoVariablesSize = repoVariables.size
-
-        if (repoVariablesSize < 3 || repoVariablesSize > 4) return ImageRepo()
-
-        return ImageRepo(
-            registry = repoVariables.getOrNull(0),
-            imageGroup = repoVariables.getOrNull(1),
-            imageName = repoVariables.getOrNull(2),
-            imageTag = repoVariables.getOrNull(3)
-        )
     }
 }

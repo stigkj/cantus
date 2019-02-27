@@ -14,7 +14,7 @@ open class ImagetagresourceBase : ContractBase() {
     private lateinit var dockerRegistryService: DockerRegistryService
 
     @MockBean
-    private lateinit var resourceAssembler: ImageTagResourceAssembler
+    private lateinit var imageTagResourceAssembler: ImageTagResourceAssembler
 
     @BeforeEach
     fun setUp() {
@@ -25,7 +25,7 @@ open class ImagetagresourceBase : ContractBase() {
                     dockerDigest = ""
                 )
             )
-            given(resourceAssembler.toResource(any<ImageManifestDto>(), any())).willReturn(it.response())
+            given(imageTagResourceAssembler.imageTagResourceToAuroraResponse(any())).willReturn(it.response())
         }
     }
 }

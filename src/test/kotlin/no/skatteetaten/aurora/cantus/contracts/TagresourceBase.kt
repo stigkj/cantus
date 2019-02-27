@@ -15,28 +15,19 @@ open class TagresourceBase : ContractBase() {
     private lateinit var dockerRegistryService: DockerRegistryService
 
     @MockBean
-    private lateinit var resourceAssembler: ImageTagResourceAssembler
+    private lateinit var imageTagResourceAssembler: ImageTagResourceAssembler
 
     @BeforeEach
     fun setUp() {
         withContractResponses(this) {
-            given(dockerRegistryService.getImageTags(any())).willReturn(
-                ImageTagsWithTypeDto(
-                    listOf(
-                        ImageTagTypedDto(
-                            ""
-                        )
-                    )
-                )
-            )
-            given(
-                resourceAssembler.toResource(
-                    any<ImageTagsWithTypeDto>(),
-                    any()
-                )
-            ).willReturn(it.response("TagResource"))
+            given(dockerRegistryService.getImageTags(any()))
+                .willReturn(ImageTagsWithTypeDto(listOf(ImageTagTypedDto(""))))
 
-            given(resourceAssembler.toGroupedResource(any(), any())).willReturn(it.response("GroupedTagResource"))
+            given(imageTagResourceAssembler.groupedTagResourceToAuroraResponse(any()))
+                .willReturn(it.response("GroupedTagResource"))
+
+            given(imageTagResourceAssembler.tagResourceToAuroraResponse(any()))
+                .willReturn(it.response("TagResource"))
         }
     }
 }

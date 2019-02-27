@@ -8,7 +8,6 @@ import no.skatteetaten.aurora.cantus.service.ImageManifestDto
 import no.skatteetaten.aurora.cantus.service.ImageTagTypedDto
 import no.skatteetaten.aurora.cantus.service.ImageTagsWithTypeDto
 import no.skatteetaten.aurora.cantus.service.JavaImageDto
-import org.junit.Before
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
@@ -17,14 +16,21 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.mock.mockito.MockBean
 import org.springframework.core.io.ClassPathResource
+import org.springframework.http.HttpStatus
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
-import org.springframework.test.web.servlet.setup.MockMvcBuilders
+
+private const val defaultTestRegistry: String = "docker.com"
 
 @WebMvcTest(
-    value = [DockerRegistryController::class, ErrorHandler::class, ImageTagResourceAssembler::class, ImageRepoDtoAssembler::class],
+    value = [
+        DockerRegistryController::class,
+        ImageTagResourceAssembler::class,
+        AuroraResponseAssembler::class,
+        ImageRepoCommandAssembler::class
+    ],
     secure = false
 )
 class DockerRegistryControllerTest {
@@ -34,17 +40,12 @@ class DockerRegistryControllerTest {
     @Autowired
     private lateinit var mockMvc: MockMvc
 
-    @Before
-    fun setup() {
-        mockMvc = MockMvcBuilders.standaloneSetup(dockerService).setControllerAdvice(ErrorHandler()).build()
-    }
-
     @ParameterizedTest
     @ValueSource(
         strings = [
-            "/no_skatteetaten_aurora_demo/whoami/2/manifest",
-            "/no_skatteetaten_aurora_demo/whoami/tags",
-            "/no_skatteetaten_aurora_demo/whoami/tags/semantic"
+            "/manifest?tagUrl=$defaultTestRegistry/no_skatteetaten_aurora_demo/whoami/2",
+            "/tags?repoUrl=$defaultTestRegistry/no_skatteetaten_aurora_demo/whoami",
+            "/tags/semantic?repoUrl=$defaultTestRegistry/no_skatteetaten_aurora_demo/whoami"
         ]
     )
     fun `Get docker registry image info`(path: String) {
@@ -69,6 +70,7 @@ class DockerRegistryControllerTest {
         given(
             dockerService.getImageTags(any())
         ).willReturn(tags)
+
         mockMvc.perform(get(path))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$").isNotEmpty)
@@ -77,22 +79,25 @@ class DockerRegistryControllerTest {
     @ParameterizedTest
     @ValueSource(
         strings = [
-            "/no_skatteetaten_aurora_demo/whoami/tags",
-            "/no_skatteetaten_aurora_demo/whoami/2/manifest"
+            "/tags?repoUrl=$defaultTestRegistry/no_skatteetaten_aurora_demo/whoami",
+            "/manifest?tagUrl=$defaultTestRegistry/no_skatteetaten_aurora_demo/whoami/2"
         ]
     )
     fun `Get docker registry image info given missing resource`(path: String) {
 
+        val notFoundStatus = HttpStatus.NOT_FOUND
+        val repoUrl = path.split("=")[1]
+
         given(dockerService.getImageTags(any())).willThrow(
             SourceSystemException(
-                message = "Tags not found for image no_skatteetaten/test",
+                message = "Resource could not be found status=${notFoundStatus.value()} message=${notFoundStatus.reasonPhrase}",
                 sourceSystem = "https://docker.com"
             )
         )
 
         given(dockerService.getImageManifestInformation(any())).willThrow(
             SourceSystemException(
-                message = "Manifest not found for image no_skatteetaten/test:0",
+                message = "Resource could not be found status=${notFoundStatus.value()} message=${notFoundStatus.reasonPhrase}",
                 sourceSystem = "https://docker.com"
             )
         )
@@ -101,27 +106,50 @@ class DockerRegistryControllerTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.items").isEmpty)
             .andExpect(jsonPath("$.success").value(false))
-            .andExpect(jsonPath("$.exception.sourceSystem").value("https://docker.com"))
+            .andExpect(jsonPath("$.failure[0].url").value(repoUrl))
+            .andExpect(jsonPath("$.failure[0].errorMessage").value("Resource could not be found status=${notFoundStatus.value()} message=${notFoundStatus.reasonPhrase}"))
     }
 
     @ParameterizedTest
     @ValueSource(
         strings = [
-            "/no_skatteetaten_aurora_demo/whoami/tags",
-            "/no_skatteetaten_aurora_demo/whoami/2/manifest"
+            "/tags?repoUrl=no_skatteetaten_aurora_demo/whaomi",
+            "/manifest?tagUrl=$defaultTestRegistry/no_skatteetaten_aurora_demo/whoami",
+            "/tags/semantic?repoUrl=$defaultTestRegistry/no_skatteetaten_aurora"
+        ]
+    )
+    fun `Get request given invalid repoUrl and tagUrl throw BadRequestException`(path: String) {
+
+        val repoUrl = path.split("=")[1]
+
+        given(dockerService.getImageManifestInformation(any()))
+            .willThrow(BadRequestException("Invalid url=$repoUrl"))
+
+        mockMvc.perform(get(path))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items").isEmpty)
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.failure[0].url").value(repoUrl))
+            .andExpect(jsonPath("$.failure[0].errorMessage").value("Invalid url=$repoUrl"))
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+        strings = [
+            "/tags?repoUrl=$defaultTestRegistry/no_skatteetaten_aurora_demo/whoami",
+            "/manifest?tagUrl=$defaultTestRegistry/no_skatteetaten_aurora_demo/whoami/2"
         ]
     )
     fun `Get request given no authorization token throw ForbiddenException`(path: String) {
-        given(dockerService.getImageTags(any())).willThrow(
-            ForbiddenException("Authorization bearer token is not present")
-        )
+        given(dockerService.getImageTags(any()))
+            .willThrow(ForbiddenException("Authorization bearer token is not present"))
 
-        given(dockerService.getImageManifestInformation(any())).willThrow(
-            ForbiddenException("Authorization bearer token is not present")
-        )
+        given(dockerService.getImageManifestInformation(any()))
+            .willThrow(ForbiddenException("Authorization bearer token is not present"))
 
         mockMvc.perform(get(path))
-            .andExpect(status().isForbidden)
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.failure[0].errorMessage").value("Authorization bearer token is not present"))
             .andExpect(jsonPath("$.items").isEmpty)
             .andExpect(jsonPath("$.success").value(false))
     }
@@ -129,29 +157,28 @@ class DockerRegistryControllerTest {
     @ParameterizedTest
     @ValueSource(
         strings = [
-            "/no_skatteetaten_aurora_demo/whoami/tags",
-            "/no_skatteetaten_aurora_demo/whoami/tags/semantic",
-            "/no_skatteetaten_aurora_demo/whoami/2/manifest"
+            "/tags?repoUrl=$defaultTestRegistry/no_skatteetaten_aurora_demo/whoami",
+            "/tags/semantic?repoUrl=$defaultTestRegistry/no_skatteetaten_aurora_demo/whoami",
+            "/manifest?tagUrl=$defaultTestRegistry/no_skatteetaten_aurora_demo/whoami/2"
         ]
     )
     fun `Get request given throw IllegalStateException`(path: String) {
-        given(dockerService.getImageTags(any())).willThrow(
-            IllegalStateException("An error has occurred")
-        )
+        given(dockerService.getImageTags(any()))
+            .willThrow(IllegalStateException("An error has occurred"))
 
-        given(dockerService.getImageManifestInformation(any())).willThrow(
-            IllegalStateException("An error has occurred")
-        )
+        given(dockerService.getImageManifestInformation(any()))
+            .willThrow(IllegalStateException("An error has occurred"))
 
         mockMvc.perform(get(path))
-            .andExpect(status().isInternalServerError)
+            .andDo { print(it.response.contentAsString) }
+            .andExpect(jsonPath("$.failure[0].errorMessage").value("An error has occurred"))
             .andExpect(jsonPath("$.items").isEmpty)
             .andExpect(jsonPath("$.success").value(false))
     }
 
     @Test
     fun `Verify groups tags correctly`() {
-        val path = "/no_skatteetaten_aurora_demo/whoami/tags/semantic"
+        val path = "/tags/semantic?repoUrl=$defaultTestRegistry/no_skatteetaten_aurora_demo/whoami"
         val tags = ImageTagsWithTypeDto(
             tags = parseJsonFromFile("dockerTagList.json")["tags"].map {
                 ImageTagTypedDto(name = it.asText())
@@ -175,16 +202,15 @@ class DockerRegistryControllerTest {
 
     @Test
     fun `Verify that allowed override docker registry url is validated as allowed`() {
-        val path = "/no_skatteetaten_aurora_demo/whoami/tags?dockerRegistryUrl=allowedurl.no"
+        val path = "/tags?repoUrl=allowedurl.no/no_skatteetaten_aurora_demo/whoami"
 
         val tags = ImageTagsWithTypeDto(
             tags = parseJsonFromFile("dockerTagList.json")["tags"].map {
                 ImageTagTypedDto(name = it.asText())
             }
         )
-        given(
-            dockerService.getImageTags(any())
-        ).willReturn(tags)
+        given(dockerService.getImageTags(any()))
+            .willReturn(tags)
 
         mockMvc.perform(get(path))
             .andExpect(status().isOk)
@@ -193,19 +219,22 @@ class DockerRegistryControllerTest {
 
     @Test
     fun `Verify that disallowed docker registry url returns bad request error`() {
-        val path = "/no_skatteetaten_aurora_demo/whoami/tags?dockerRegistryUrl=vg.no"
+        val repoUrl = "vg.no/no_skatteetaten_aurora_demo/whoami"
+        val path = "/tags?repoUrl=$repoUrl"
 
         val tags = ImageTagsWithTypeDto(
             tags = parseJsonFromFile("dockerTagList.json")["tags"].map {
                 ImageTagTypedDto(name = it.asText())
             }
         )
+
         given(
             dockerService.getImageTags(any())
         ).willReturn(tags)
 
         mockMvc.perform(get(path))
-            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.failure[0].errorMessage").value("Invalid Docker Registry URL url=vg.no"))
+            .andExpect(jsonPath("$.failure[0].url").value(repoUrl))
             .andExpect(jsonPath("$.success").value(false))
     }
 

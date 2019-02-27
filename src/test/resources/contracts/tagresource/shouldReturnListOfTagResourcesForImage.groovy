@@ -6,8 +6,8 @@ Contract.make {
   request {
     method 'GET'
     url $(
-        stub(~/\/\w+\/\w+\/tags\//),
-        test('/no_skatteetaten_aurora_demo/whoami/tags/')
+        stub(~/\/tags\?repoUrl=.*/),
+        test('/tags?repoUrl=/no_skatteetaten_aurora_demo/whoami')
     )
   }
   response {

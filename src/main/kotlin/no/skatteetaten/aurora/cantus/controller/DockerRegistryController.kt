@@ -1,8 +1,10 @@
 package no.skatteetaten.aurora.cantus.controller
 
 import no.skatteetaten.aurora.cantus.service.DockerRegistryService
+import no.skatteetaten.aurora.cantus.service.ImageManifestDto
+import no.skatteetaten.aurora.cantus.service.ImageTagsWithTypeDto
+import org.springframework.stereotype.Component
 import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -11,73 +13,113 @@ import org.springframework.web.bind.annotation.RestController
 class DockerRegistryController(
     val dockerRegistryService: DockerRegistryService,
     val imageTagResourceAssembler: ImageTagResourceAssembler,
-    val imageRepoDtoAssembler: ImageRepoDtoAssembler
+    val imageRepoCommandAssembler: ImageRepoCommandAssembler
 ) {
 
-    @GetMapping("/{affiliation}/{name}/{tag}/manifest")
-    fun getManifestInformation(
-        @PathVariable affiliation: String,
-        @PathVariable name: String,
-        @PathVariable tag: String,
-        @RequestParam(required = false) dockerRegistryUrl: String?,
+    @GetMapping("/manifest")
+    fun getManifestInformationList(
+        @RequestParam tagUrl: List<String>,
         @RequestHeader(required = false, value = "Authorization") bearerToken: String?
     ): AuroraResponse<ImageTagResource> {
-        val imageRepoCommand = imageRepoDtoAssembler.createAndValidateCommand(
-            overrideRegistryUrl = dockerRegistryUrl,
-            name = name,
-            namespace = affiliation,
-            tag = tag,
-            bearerToken = bearerToken
-        )
-        return dockerRegistryService
-            .getImageManifestInformation(imageRepoCommand).let { manifestDto ->
-                imageTagResourceAssembler.toResource(
-                    manifestDto,
-                    "Successfully retrieved manifest information for image ${imageRepoCommand.manifestRepo}"
-                )
+
+        val responses = tagUrl.map {
+            getResponse(bearerToken, it) { dockerService, imageRepoCommand ->
+                dockerService
+                    .getImageManifestInformation(imageRepoCommand)
+                    .let { imageManifestDto ->
+                        imageTagResourceAssembler.toImageTagResource(manifestDto = imageManifestDto, requestUrl = it)
+                    }
             }
+        }
+
+        return imageTagResourceAssembler.imageTagResourceToAuroraResponse(responses)
     }
 
-    @GetMapping("/{affiliation}/{name}/tags")
+    @GetMapping("/tags")
     fun getImageTags(
-        @PathVariable affiliation: String,
-        @PathVariable name: String,
-        @RequestParam(required = false) dockerRegistryUrl: String?,
+        @RequestParam repoUrl: String,
         @RequestHeader(required = false, value = "Authorization") bearerToken: String?
     ): AuroraResponse<TagResource> {
-        val imageRepoCommand = imageRepoDtoAssembler.createAndValidateCommand(
-            overrideRegistryUrl = dockerRegistryUrl,
-            name = name,
-            namespace = affiliation,
-            bearerToken = bearerToken
-        )
-        return dockerRegistryService.getImageTags(imageRepoCommand).let { imageTagsWithTypeDto ->
-            imageTagResourceAssembler.toResource(
-                imageTagsWithTypeDto,
-                "Successfully retrieved tags for image ${imageRepoCommand.defaultRepo}"
-            )
-        }
+
+        val response =
+            getResponse(bearerToken, repoUrl) { dockerService, imageRepoCommand ->
+                dockerService.getImageTags(imageRepoCommand).let { tags ->
+                    val tagResponse = imageTagResourceAssembler.toTagResource(tags)
+                    tagResponse
+                }
+            }
+
+        return imageTagResourceAssembler.tagResourceToAuroraResponse(response)
     }
 
-    @GetMapping("/{affiliation}/{name}/tags/semantic")
+    @GetMapping("/tags/semantic")
     fun getImageTagsSemantic(
-        @PathVariable affiliation: String,
-        @PathVariable name: String,
-        @RequestParam(required = false) dockerRegistryUrl: String?,
+        @RequestParam repoUrl: String,
         @RequestHeader(required = false, value = "Authorization") bearerToken: String?
     ): AuroraResponse<GroupedTagResource> {
-        val imageRepoCommand = imageRepoDtoAssembler.createAndValidateCommand(
-            overrideRegistryUrl = dockerRegistryUrl,
-            name = name,
-            namespace = affiliation,
-            bearerToken = bearerToken
-        )
 
-        return dockerRegistryService.getImageTags(imageRepoCommand).let { imageTagsWithTypeDto ->
-            imageTagResourceAssembler.toGroupedResource(
-                imageTagsWithTypeDto,
-                "Successfully retrieved tags grouped by semantic version for image ${imageRepoCommand.defaultRepo}"
-            )
+        val response = getResponse(bearerToken, repoUrl) { dockerService, imageRepoCommand ->
+            dockerService.getImageTags(imageRepoCommand)
+                .let { tags -> imageTagResourceAssembler.toGroupedTagResource(tags, imageRepoCommand.defaultRepo) }
+        }
+
+        return imageTagResourceAssembler.groupedTagResourceToAuroraResponse(response)
+    }
+
+    private final inline fun <reified T : Any> getResponse(
+        bearerToken: String?,
+        repoUrl: String,
+        fn: (DockerRegistryService, ImageRepoCommand) -> T
+    ): Try<T, CantusFailure> {
+        try {
+            val imageRepoCommand = imageRepoCommandAssembler.createAndValidateCommand(repoUrl, bearerToken)
+                ?: return Try.Failure(CantusFailure(repoUrl, BadRequestException("Invalid url=$repoUrl")))
+
+            return Try.Success(fn(dockerRegistryService, imageRepoCommand))
+        } catch (e: Throwable) {
+            return Try.Failure(CantusFailure(repoUrl, e))
         }
     }
+}
+
+@Component
+class ImageTagResourceAssembler(val auroraResponseAssembler: AuroraResponseAssembler) {
+    fun imageTagResourceToAuroraResponse(resources: List<Try<ImageTagResource, CantusFailure>>) =
+        auroraResponseAssembler.toAuroraResponse(resources)
+
+    fun tagResourceToAuroraResponse(resources: Try<List<TagResource>, CantusFailure>) =
+        auroraResponseAssembler.toAuroraResponse(resources)
+
+    fun groupedTagResourceToAuroraResponse(resources: Try<List<GroupedTagResource>, CantusFailure>) =
+        auroraResponseAssembler.toAuroraResponse(resources)
+
+    fun toTagResource(imageTagsWithTypeDto: ImageTagsWithTypeDto) =
+        imageTagsWithTypeDto.tags.map { TagResource(it.name) }
+
+    fun toGroupedTagResource(imageTagsWithTypeDto: ImageTagsWithTypeDto, repoUrl: String) =
+        imageTagsWithTypeDto.tags
+            .groupBy { it.type }
+            .map { groupedTag ->
+                GroupedTagResource(
+                    group = groupedTag.key.toString(),
+                    tagResource = groupedTag.value.map {
+                        TagResource(
+                            name = it.name,
+                            type = it.type
+                        )
+                    }
+                )
+            }
+
+    fun toImageTagResource(manifestDto: ImageManifestDto, requestUrl: String) =
+        ImageTagResource(
+            java = JavaImage.fromDto(manifestDto),
+            dockerDigest = manifestDto.dockerDigest,
+            dockerVersion = manifestDto.dockerVersion,
+            appVersion = manifestDto.appVersion,
+            auroraVersion = manifestDto.auroraVersion,
+            timeline = ImageBuildTimeline.fromDto(manifestDto),
+            node = NodeJsImage.fromDto(manifestDto),
+            requsestUrl = requestUrl
+        )
 }

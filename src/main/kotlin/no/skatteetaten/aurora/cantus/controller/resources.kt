@@ -1,11 +1,14 @@
 package no.skatteetaten.aurora.cantus.controller
 
+import com.fasterxml.jackson.annotation.JsonIgnore
+import mu.KotlinLogging
 import no.skatteetaten.aurora.cantus.service.ImageManifestDto
 import no.skatteetaten.aurora.cantus.service.ImageTagType
-import no.skatteetaten.aurora.cantus.service.ImageTagsWithTypeDto
 import org.springframework.stereotype.Component
 import uk.q3c.rest.hal.HalResource
 import java.time.Instant
+
+private val logger = KotlinLogging.logger {}
 
 data class TagResource(val name: String, val type: ImageTagType = ImageTagType.typeOf(name)) : HalResource()
 
@@ -22,7 +25,8 @@ data class ImageTagResource(
     val dockerVersion: String,
     val dockerDigest: String,
     val java: JavaImage? = null,
-    val node: NodeJsImage? = null
+    val node: NodeJsImage? = null,
+    val requsestUrl: String
 ) : HalResource()
 
 data class JavaImage(
@@ -83,69 +87,80 @@ data class NodeJsImage(
     }
 }
 
-data class AuroraResponse<T : HalResource>(
-    val items: List<T> = emptyList(),
-    val success: Boolean = true,
-    val message: String = "OK",
-    val exception: Throwable? = null,
-    val count: Int = items.size
-) : HalResource() {
-    // TODO: trenger vi denne?
-    val item: T?
-        get() {
-            if (count == 1) {
-                return items.first()
-            }
-            return null
-        }
+sealed class Try<out A, out B> {
+    class Success<A>(val value: A) : Try<A, Nothing>()
+    class Failure<B>(val value: B) : Try<Nothing, B>()
 }
 
+fun <S : Any, T : Any> List<Try<S, T>>.getSuccessAndFailures(): Pair<List<S>, List<T>> {
+    val items = this.mapNotNull {
+        if (it is Try.Success) {
+            it.value
+        } else null
+    }
+
+    val failure = this.mapNotNull {
+        if (it is Try.Failure) {
+            if (it.value is CantusFailure) logger.debug(it.value.error) { "An error has occurred" }
+            it.value
+        } else null
+    }
+
+    return Pair(items, failure)
+}
+
+fun <S, T> Try<S, T>.getSuccessAndFailures(): Pair<List<S>, List<T>> {
+    val item = if (this is Try.Success) {
+        listOf(this.value)
+    } else emptyList()
+    val failure = if (this is Try.Failure) {
+        listOf(this.value)
+    } else emptyList()
+
+    return Pair(item, failure)
+}
+
+data class CantusFailure(
+    val url: String,
+    @JsonIgnore val error: Throwable? = null
+) {
+    val errorMessage: String = error?.let { it.message ?: "Unknown error (${it::class.simpleName})" } ?: ""
+}
+
+data class AuroraResponse<T : HalResource?>(
+    val items: List<T> = emptyList(),
+    val failure: List<CantusFailure> = emptyList(),
+    val success: Boolean = true,
+    val message: String = "OK",
+    val failureCount: Int = failure.size,
+    val successCount: Int = items.size,
+    val count: Int = failureCount + successCount
+) : HalResource()
+
 @Component
-class ImageTagResourceAssembler {
-    fun toResource(manifestDto: ImageManifestDto, message: String): AuroraResponse<ImageTagResource> =
-        AuroraResponse(
-            success = true,
-            message = message,
-            items = listOf(
-                ImageTagResource(
-                    java = JavaImage.fromDto(manifestDto),
-                    dockerDigest = manifestDto.dockerDigest,
-                    dockerVersion = manifestDto.dockerVersion,
-                    appVersion = manifestDto.appVersion,
-                    auroraVersion = manifestDto.auroraVersion,
-                    timeline = ImageBuildTimeline.fromDto(manifestDto),
-                    node = NodeJsImage.fromDto(manifestDto)
-                )
-            )
-        )
+class AuroraResponseAssembler {
 
-    fun toResource(tags: ImageTagsWithTypeDto, message: String): AuroraResponse<TagResource> =
-        AuroraResponse(
-            success = true,
-            message = message,
-            items = tags.tags.map {
-                TagResource(
-                    name = it.name
-                )
-            }
-        )
+    fun <T : HalResource> toAuroraResponse(responses: List<Try<T, CantusFailure>>): AuroraResponse<T> {
+        val (items, failures) = responses.getSuccessAndFailures()
 
-    fun toGroupedResource(tags: ImageTagsWithTypeDto, message: String): AuroraResponse<GroupedTagResource> =
-        AuroraResponse(
-            success = true,
-            message = message,
-            items = tags.tags.groupBy {
-                it.type
-            }.map { groupedTag ->
-                GroupedTagResource(
-                    group = groupedTag.key.toString(),
-                    tagResource = groupedTag.value.map {
-                        TagResource(
-                            name = it.name,
-                            type = it.type
-                        )
-                    }
-                )
-            }
+        return AuroraResponse(
+            success = failures.isEmpty(),
+            message = if (failures.isNotEmpty()) failures.first().errorMessage else "Success",
+            items = items,
+            failure = failures
         )
+    }
+
+    fun <T : HalResource> toAuroraResponse(responses: Try<List<T>, CantusFailure>): AuroraResponse<T> {
+        val itemsAndFailure = responses.getSuccessAndFailures()
+        val items = itemsAndFailure.first.firstOrNull() ?: emptyList()
+        val failures = itemsAndFailure.second
+
+        return AuroraResponse(
+            success = failures.isEmpty(),
+            message = if (failures.isNotEmpty()) failures.first().errorMessage else "Success",
+            items = items,
+            failure = failures
+        )
+    }
 }
