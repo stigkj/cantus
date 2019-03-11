@@ -16,7 +16,7 @@
         "jolokia": "1.3.7"
       },
       "node": null,
-      "requsestUrl": "/no_skatteetaten_aurora_demo/whoami/2",
+      "requestUrl": "/no_skatteetaten_aurora_demo/whoami/2",
       "_links": {
         "self": {
           "href": ""

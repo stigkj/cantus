@@ -4,6 +4,7 @@ import io.netty.channel.ChannelOption
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.handler.timeout.ReadTimeoutHandler
 import io.netty.handler.timeout.WriteTimeoutHandler
+import kotlinx.coroutines.newFixedThreadPoolContext
 import mu.KotlinLogging
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -35,6 +36,10 @@ private val logger = KotlinLogging.logger {}
 
 @Configuration
 class ApplicationConfig {
+
+    @Bean
+    fun threadPoolContext(@Value("\${cantus.threadPoolSize:6}") threadPoolSize: Int) =
+        newFixedThreadPoolContext(threadPoolSize, "cantus")
 
     @Bean
     fun webClient(builder: WebClient.Builder, tcpClient: TcpClient) =

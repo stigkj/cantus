@@ -61,7 +61,6 @@ class DockerRegistryServiceNetworkTest {
         server.execute(status = statusCode, headers = headers) {
             val exception = catch { dockerService.getImageManifestInformation(imageRepoCommand) }
             assertk.assert(exception).isNotNull {
-                println(it.actual.message)
                 assertk.assert(it.actual::class).isEqualTo(SourceSystemException::class)
             }
         }
@@ -76,13 +75,12 @@ class DockerRegistryServiceNetworkTest {
     fun `Handle connection failure in retrieve that throws exception`(socketPolicy: SocketPolicy) {
 
         val response = MockResponse()
-            .setJsonFileAsBody("dockerTagList.json")
             .apply { this.socketPolicy = socketPolicy }
+            .setJsonFileAsBody("dockerTagList.json")
 
         server.execute(response) {
             val exception = catch { dockerService.getImageTags(imageRepoCommand) }
             assertk.assert(exception).isNotNull {
-                println(exception)
                 assertk.assert(it.actual::class).isEqualTo(CantusException::class)
             }
         }
@@ -104,7 +102,6 @@ class DockerRegistryServiceNetworkTest {
         server.execute(response) {
             val exception = catch { dockerService.getImageManifestInformation(imageRepoCommand) }
             assertk.assert(exception).isNotNull {
-                println(exception)
                 assertk.assert(it.actual::class).isEqualTo(CantusException::class)
             }
         }
@@ -119,8 +116,8 @@ class DockerRegistryServiceNetworkTest {
     fun `Handle connection failure that returns response`(socketPolicy: SocketPolicy) {
 
         val response = MockResponse()
-            .setJsonFileAsBody("dockerTagList.json")
             .apply { this.socketPolicy = socketPolicy }
+            .setJsonFileAsBody("dockerTagList.json")
 
         server.execute(response) {
             val result = dockerService.getImageTags(imageRepoCommand)

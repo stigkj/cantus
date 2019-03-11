@@ -26,7 +26,7 @@ data class ImageTagResource(
     val dockerDigest: String,
     val java: JavaImage? = null,
     val node: NodeJsImage? = null,
-    val requsestUrl: String
+    val requestUrl: String
 ) : HalResource()
 
 data class JavaImage(

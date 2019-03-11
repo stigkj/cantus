@@ -54,6 +54,7 @@ dependencyManagement {
 def junitJupiterVersion = dependencyManagement.importedProperties['junit-jupiter.version']
 dependencies {
   compile(
+      "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.1.1",
       "uk.q3c.rest:hal-kotlin:0.5.3.2.a87244c",
       "com.fasterxml.jackson.module:jackson-module-kotlin",
       "no.skatteetaten.aurora.springboot:aurora-spring-boot2-starter:1.4.1",

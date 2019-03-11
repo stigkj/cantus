@@ -28,7 +28,7 @@ class ImageTagResourceAssemblerOld {
                     auroraVersion = manifestDto.auroraVersion,
                     timeline = ImageBuildTimeline.fromDto(manifestDto),
                     node = NodeJsImage.fromDto(manifestDto),
-                    requsestUrl = ""
+                    requestUrl = ""
                 )
             )
         )

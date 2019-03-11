@@ -15,7 +15,7 @@ aurora:
 
 logging:
     level:
-        no.skatteetaten.aurora.cantus: DEBUG
+        no.skatteetaten.aurora.cantus: INFO
         org:
             hibernate: WARN
             springframework: INFO
@@ -33,6 +33,7 @@ cantus:
 
 server:
     port: 8090
+    max-http-header-size: 200000
 
 management:
     server:
