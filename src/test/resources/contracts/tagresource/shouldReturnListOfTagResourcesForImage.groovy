@@ -7,7 +7,7 @@ Contract.make {
     method 'GET'
     url $(
         stub(~/\/tags\?repoUrl=.*/),
-        test('/tags?repoUrl=/no_skatteetaten_aurora_demo/whoami')
+        test('/tags?repoUrl=docker1.no/no_skatteetaten_aurora_demo/whoami')
     )
   }
   response {
