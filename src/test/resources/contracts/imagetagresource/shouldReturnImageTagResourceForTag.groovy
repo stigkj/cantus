@@ -14,6 +14,7 @@ Contract.make {
     status 200
     headers {
       contentType(applicationJson())
+      header('Connection', 'close')
     }
     body(file('responses/ImageTagResource.json'))
   }
