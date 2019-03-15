@@ -6,6 +6,8 @@ import io.netty.handler.timeout.ReadTimeoutHandler
 import io.netty.handler.timeout.WriteTimeoutHandler
 import kotlinx.coroutines.newFixedThreadPoolContext
 import mu.KotlinLogging
+import no.skatteetaten.aurora.filter.logging.AuroraHeaderFilter
+import no.skatteetaten.aurora.filter.logging.RequestKorrelasjon
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
@@ -42,9 +44,15 @@ class ApplicationConfig {
         newFixedThreadPoolContext(threadPoolSize, "cantus")
 
     @Bean
-    fun webClient(builder: WebClient.Builder, tcpClient: TcpClient) =
+    fun webClient(
+        builder: WebClient.Builder,
+        tcpClient: TcpClient,
+        @Value("\${spring.application.name}") applicationName: String
+    ) =
         builder
             .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+            .defaultHeader("KlientID", applicationName)
+            .defaultHeader(AuroraHeaderFilter.KORRELASJONS_ID, RequestKorrelasjon.getId())
             .exchangeStrategies(exchangeStrategies())
             .filter(ExchangeFilterFunction.ofRequestProcessor {
                 val bearer = it.headers()[HttpHeaders.AUTHORIZATION]?.firstOrNull()?.let { token ->

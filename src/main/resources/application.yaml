@@ -8,11 +8,6 @@ spring:
     profiles:
         active: local
 
-aurora:
-    starter:
-        headerfilter:
-            enabled: false
-
 logging:
     level:
         no.skatteetaten.aurora.cantus: INFO
@@ -37,7 +32,7 @@ server:
 
 management:
     server:
-        port: 8095
+        port: 8000
 
 logging:
     pattern:

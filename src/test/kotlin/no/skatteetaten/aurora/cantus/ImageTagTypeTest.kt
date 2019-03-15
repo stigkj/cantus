@@ -1,6 +1,6 @@
 package no.skatteetaten.aurora.cantus
 
-import assertk.assert
+import assertk.assertThat
 import assertk.assertions.isEqualTo
 import no.skatteetaten.aurora.cantus.service.ImageTagType
 import org.junit.jupiter.params.ParameterizedTest
@@ -15,7 +15,7 @@ class ImageTagTypeTest {
     fun `Verify image name is converted to correct image tag`(imageTagTypeInput: ImageTagTypeTestData) {
         imageTagTypeInput.apply {
             val imageTagCalculated = ImageTagType.typeOf(imageTagTypeInput.inputStrig)
-            assert(imageTagCalculated).isEqualTo(imageTagTypeInput.expectedTag)
+            assertThat(imageTagCalculated).isEqualTo(imageTagTypeInput.expectedTag)
         }
     }
 

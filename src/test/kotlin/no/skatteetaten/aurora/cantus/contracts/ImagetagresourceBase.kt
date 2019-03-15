@@ -8,7 +8,7 @@ import no.skatteetaten.aurora.cantus.service.ImageManifestDto
 import org.junit.jupiter.api.BeforeEach
 import org.springframework.boot.test.mock.mockito.MockBean
 
-open class ImagetagresourceBase : ContractBase() {
+class ImagetagresourceBase : ContractBase() {
 
     @MockBean
     private lateinit var dockerRegistryService: DockerRegistryService

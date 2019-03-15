@@ -1,9 +1,11 @@
 package no.skatteetaten.aurora.cantus.service
 
-import assertk.Assert
-import assertk.assert
+import assertk.assertThat
+import assertk.assertions.contains
 import assertk.assertions.isEqualTo
+import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotNull
+import assertk.assertions.message
 import assertk.catch
 import no.skatteetaten.aurora.cantus.ApplicationConfig
 import no.skatteetaten.aurora.cantus.controller.ForbiddenException
@@ -40,7 +42,7 @@ class DockerRegistryServiceTest {
     private val applicationConfig = ApplicationConfig()
 
     private val dockerService = DockerRegistryService(
-        applicationConfig.webClient(WebClient.builder(), applicationConfig.tcpClient(100, 100, 100, null)),
+        applicationConfig.webClient(WebClient.builder(), applicationConfig.tcpClient(100, 100, 100, null), "cantus"),
         RegistryMetadataResolver(listOf(imageRepoCommand.registry)),
         ImageRegistryUrlBuilder()
     )
@@ -52,10 +54,10 @@ class DockerRegistryServiceTest {
 
         server.execute(response) {
             val jsonResponse = dockerService.getImageManifestInformation(imageRepoCommand)
-            assert(jsonResponse).isNotNull {
-                assert(it.actual.dockerDigest).isEqualTo("SHA::256")
-                assert(it.actual.dockerVersion).isEqualTo("1.13.1")
-                assert(it.actual.buildEnded).isEqualTo("2018-11-05T14:01:22.654389192Z")
+            assertThat(jsonResponse).isNotNull().given {
+                assertThat(it.dockerDigest).isEqualTo("SHA::256")
+                assertThat(it.dockerVersion).isEqualTo("1.13.1")
+                assertThat(it.buildEnded).isEqualTo("2018-11-05T14:01:22.654389192Z")
             }
         }
     }
@@ -66,11 +68,11 @@ class DockerRegistryServiceTest {
 
         server.execute(response) {
             val jsonResponse: ImageTagsWithTypeDto = dockerService.getImageTags(imageRepoCommand)
-            assert(jsonResponse).isNotNull {
-                assert(it.actual.tags.size).isEqualTo(5)
-                assert(it.actual.tags[0].name).isEqualTo("0")
-                assert(it.actual.tags[1].name).isEqualTo("0.0")
-                assert(it.actual.tags[2].name).isEqualTo("0.0.0")
+            assertThat(jsonResponse).isNotNull().given {
+                assertThat(it.tags.size).isEqualTo(5)
+                assertThat(it.tags[0].name).isEqualTo("0")
+                assertThat(it.tags[1].name).isEqualTo("0.0")
+                assertThat(it.tags[2].name).isEqualTo("0.0.0")
             }
         }
     }
@@ -80,10 +82,9 @@ class DockerRegistryServiceTest {
         server.execute(ImageTagsResponseDto(emptyList())) {
             val exception = catch { dockerService.getImageTags(imageRepoCommand) }
 
-            assert(exception).isNotNull {
-                assert(it.actual::class).isEqualTo(SourceSystemException::class)
-                assert(it.actual.message).isEqualTo("Resource could not be found status=404 message=Not Found")
-            }
+            assertThat(exception)
+                .isNotNull().isInstanceOf(SourceSystemException::class)
+                .message().isNotNull().contains("status=404 message=Not Found")
         }
     }
 
@@ -94,9 +95,7 @@ class DockerRegistryServiceTest {
         server.execute(response) {
             val exception = catch { dockerService.getImageManifestInformation(imageRepoCommand) }
 
-            assert(exception).isNotNull {
-                assert(it.actual::class).isEqualTo(SourceSystemException::class)
-            }
+            assertThat(exception).isNotNull().isInstanceOf(SourceSystemException::class)
         }
     }
 
@@ -109,9 +108,7 @@ class DockerRegistryServiceTest {
         server.execute(response) {
             val exception = catch { dockerService.getImageManifestInformation(imageRepoCommand) }
 
-            assert(exception).isNotNull {
-                assert(it.actual::class).isEqualTo(SourceSystemException::class)
-            }
+            assertThat(exception).isNotNull().isInstanceOf(SourceSystemException::class)
         }
     }
 
@@ -123,29 +120,26 @@ class DockerRegistryServiceTest {
         server.execute(response) {
             val exception = catch { dockerService.getImageManifestInformation(imageRepoCommand) }
 
-            assert(exception).isNotNull {
-                assert(it.actual::class).isEqualTo(SourceSystemException::class)
-                assert(it.actual).beginsWith("Response did not contain")
-            }
+            assertThat(exception)
+                .isNotNull().isInstanceOf(SourceSystemException::class)
+                .message().isNotNull().contains("Response did not contain")
         }
     }
 
     @Test
     fun `Get image tags given missing authorization token throws ForbiddenException`() {
         val exception = catch { dockerServiceNoBearer.getImageTags(imageRepoCommandNoToken) }
-        assert(exception).isNotNull {
-            assert(it.actual::class).isEqualTo(ForbiddenException::class)
-            assert(it.actual.message).isEqualTo("Authorization bearer token is not present")
-        }
+        assertThat(exception)
+            .isNotNull().isInstanceOf(ForbiddenException::class)
+            .message().isNotNull().isEqualTo("Authorization bearer token is not present")
     }
 
     @Test
     fun `Get image manifest given missing authorization token throws ForbiddenException`() {
         val exception = catch { dockerServiceNoBearer.getImageManifestInformation(imageRepoCommandNoToken) }
-        assert(exception).isNotNull {
-            assert(it.actual::class).isEqualTo(ForbiddenException::class)
-            assert(it.actual.message).isEqualTo("Authorization bearer token is not present")
-        }
+        assertThat(exception)
+            .isNotNull().isInstanceOf(ForbiddenException::class)
+            .message().isNotNull().isEqualTo("Authorization bearer token is not present")
     }
 
     @Test
@@ -162,14 +156,14 @@ class DockerRegistryServiceTest {
 
             val jsonResponse = dockerService.getImageManifestInformation(imageRepoCommand)
 
-            assert(jsonResponse).isNotNull {
-                assert(it.actual.dockerDigest).isEqualTo("sha256")
-                assert(it.actual.nodeVersion).isEqualTo(null)
-                assert(it.actual.buildEnded).isEqualTo("2018-11-05T14:01:22.654389192Z")
-                assert(it.actual.java?.major).isEqualTo("8")
+            assertThat(jsonResponse).isNotNull().given {
+                assertThat(it.dockerDigest).isEqualTo("sha256")
+                assertThat(it.nodeVersion).isEqualTo(null)
+                assertThat(it.buildEnded).isEqualTo("2018-11-05T14:01:22.654389192Z")
+                assertThat(it.java?.major).isEqualTo("8")
             }
         }
-        assert(requests.size).isEqualTo(2)
+        assertThat(requests.size).isEqualTo(2)
     }
 
     @Test
@@ -178,18 +172,16 @@ class DockerRegistryServiceTest {
             .setJsonFileAsBody("dockerManifestV2.json")
             .setHeader("Content-Type", "application/vnd.docker.distribution.manifest.v2+json")
             .addHeader("Docker-Content-Digest", "sha256")
+
         val response2 = MockResponse()
 
         val requests = server.execute(response, response2) {
             val exception = catch { dockerService.getImageManifestInformation(imageRepoCommand) }
 
-            assert(exception).isNotNull {
-                assert(it.actual::class).isEqualTo(SourceSystemException::class)
-                assert(it.actual).beginsWith("Unable to retrieve Vl1 manifest")
-            }
+            assertThat(exception)
+                .isNotNull().isInstanceOf(SourceSystemException::class)
+                .message().isNotNull().contains("Unable to retrieve V2 manifest")
         }
-        assert(requests.size).isEqualTo(2)
+        assertThat(requests.size).isEqualTo(2)
     }
-
-    private fun Assert<Throwable>.beginsWith(subString: String) = actual.message?.startsWith(subString)
 }

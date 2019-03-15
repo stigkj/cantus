@@ -3,6 +3,7 @@ package no.skatteetaten.aurora.cantus.controller
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.slf4j.MDCContext
 import no.skatteetaten.aurora.cantus.service.DockerRegistryService
 import no.skatteetaten.aurora.cantus.service.ImageManifestDto
 import no.skatteetaten.aurora.cantus.service.ImageTagsWithTypeDto
@@ -27,7 +28,7 @@ class DockerRegistryController(
     ): AuroraResponse<ImageTagResource> {
 
         val responses =
-            runBlocking(threadPoolContext) {
+            runBlocking(MDCContext() + threadPoolContext) {
                 val deferred =
                     tagUrls.map {
                         async { getImageTagResource(bearerToken, it) }

@@ -1,6 +1,7 @@
 package no.skatteetaten.aurora.cantus.service
 
-import assertk.assertions.isEqualTo
+import assertk.assertThat
+import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotNull
 import assertk.catch
 import no.skatteetaten.aurora.cantus.ApplicationConfig
@@ -39,7 +40,7 @@ class DockerRegistryServiceNetworkTest {
     private val applicationConfig = ApplicationConfig()
 
     private val dockerService = DockerRegistryService(
-        applicationConfig.webClient(WebClient.builder(), applicationConfig.tcpClient(100, 100, 100, null)),
+        applicationConfig.webClient(WebClient.builder(), applicationConfig.tcpClient(100, 100, 100, null), "cantus"),
         RegistryMetadataResolver(listOf(imageRepoCommand.registry)),
         ImageRegistryUrlBuilder()
     )
@@ -60,9 +61,7 @@ class DockerRegistryServiceNetworkTest {
         )
         server.execute(status = statusCode, headers = headers) {
             val exception = catch { dockerService.getImageManifestInformation(imageRepoCommand) }
-            assertk.assert(exception).isNotNull {
-                assertk.assert(it.actual::class).isEqualTo(SourceSystemException::class)
-            }
+            assertThat(exception).isNotNull().isInstanceOf(SourceSystemException::class)
         }
     }
 
@@ -80,9 +79,7 @@ class DockerRegistryServiceNetworkTest {
 
         server.execute(response) {
             val exception = catch { dockerService.getImageTags(imageRepoCommand) }
-            assertk.assert(exception).isNotNull {
-                assertk.assert(it.actual::class).isEqualTo(CantusException::class)
-            }
+            assertThat(exception).isNotNull().isInstanceOf(CantusException::class)
         }
     }
 
@@ -101,9 +98,7 @@ class DockerRegistryServiceNetworkTest {
 
         server.execute(response) {
             val exception = catch { dockerService.getImageManifestInformation(imageRepoCommand) }
-            assertk.assert(exception).isNotNull {
-                assertk.assert(it.actual::class).isEqualTo(CantusException::class)
-            }
+            assertThat(exception).isNotNull().isInstanceOf(CantusException::class)
         }
     }
 
@@ -121,7 +116,7 @@ class DockerRegistryServiceNetworkTest {
 
         server.execute(response) {
             val result = dockerService.getImageTags(imageRepoCommand)
-            assertk.assert(result).isNotNull()
+            assertThat(result).isNotNull()
         }
     }
 }
