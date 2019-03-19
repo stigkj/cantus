@@ -4,11 +4,15 @@ import org.springframework.cloud.contract.spec.Contract
 
 Contract.make {
   request {
-    method 'GET'
+    method 'POST'
     url $(
-        stub(~/\/manifest\?tagUrls=.*/),
-        test('/manifest?tagUrls=docker1.no/no_skatteetaten_aurora_demo/whoami/1')
+        stub(~/\/manifest/),
+        test('/manifest')
     )
+    headers {
+      contentType(applicationJson())
+    }
+    body('["docker1.no/no_skatt_test/namespace/name/tag"]')
   }
   response {
     status 200

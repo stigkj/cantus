@@ -9,6 +9,8 @@ import no.skatteetaten.aurora.cantus.service.ImageManifestDto
 import no.skatteetaten.aurora.cantus.service.ImageTagsWithTypeDto
 import org.springframework.stereotype.Component
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -21,9 +23,9 @@ class DockerRegistryController(
     val threadPoolContext: ExecutorCoroutineDispatcher
 ) {
 
-    @GetMapping("/manifest")
+    @PostMapping("/manifest")
     fun getManifestInformationList(
-        @RequestParam tagUrls: List<String>,
+        @RequestBody tagUrls: List<String>,
         @RequestHeader(required = false, value = "Authorization") bearerToken: String?
     ): AuroraResponse<ImageTagResource> {
 
