@@ -17,7 +17,6 @@ import org.junit.jupiter.params.provider.ValueSource
 import org.mockito.BDDMockito.given
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.boot.test.autoconfigure.restdocs.AutoConfigureRestDocs
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.test.mock.mockito.MockBean
@@ -31,7 +30,6 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 private const val defaultTestRegistry: String = "docker.com"
 
-@AutoConfigureRestDocs
 @WebMvcTest(
     value = [
         DockerRegistryController::class,
