@@ -11,8 +11,8 @@ import no.skatteetaten.aurora.cantus.ApplicationConfig
 import no.skatteetaten.aurora.cantus.controller.ForbiddenException
 import no.skatteetaten.aurora.cantus.controller.ImageRepoCommand
 import no.skatteetaten.aurora.cantus.controller.SourceSystemException
-import no.skatteetaten.aurora.cantus.execute
-import no.skatteetaten.aurora.cantus.setJsonFileAsBody
+import no.skatteetaten.aurora.mockmvc.extensions.mockwebserver.execute
+import no.skatteetaten.aurora.mockmvc.extensions.mockwebserver.setJsonFileAsBody
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.Test
@@ -50,7 +50,9 @@ class DockerRegistryServiceTest {
     @Test
     fun `Verify fetches manifest information for specified image`() {
         val response =
-            MockResponse().setJsonFileAsBody("dockerManifestV1.json").addHeader("Docker-Content-Digest", "SHA::256")
+            MockResponse()
+                .setJsonFileAsBody("dockerManifestV1.json")
+                .addHeader("Docker-Content-Digest", "SHA::256")
 
         server.execute(response) {
             val jsonResponse = dockerService.getImageManifestInformation(imageRepoCommand)

@@ -8,9 +8,8 @@ import no.skatteetaten.aurora.cantus.ApplicationConfig
 import no.skatteetaten.aurora.cantus.controller.CantusException
 import no.skatteetaten.aurora.cantus.controller.ImageRepoCommand
 import no.skatteetaten.aurora.cantus.controller.SourceSystemException
-import no.skatteetaten.aurora.cantus.execute
-import no.skatteetaten.aurora.cantus.setJsonFileAsBody
-import okhttp3.Headers
+import no.skatteetaten.aurora.mockmvc.extensions.mockwebserver.execute
+import no.skatteetaten.aurora.mockmvc.extensions.mockwebserver.setJsonFileAsBody
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.SocketPolicy
@@ -53,14 +52,15 @@ class DockerRegistryServiceNetworkTest {
     @ParameterizedTest
     @ValueSource(ints = [500, 400, 404, 403, 501, 401, 418])
     fun `Get image manifest given internal server error in docker registry`(statusCode: Int) {
-        val headers = Headers.of(
-            mapOf(
-                HttpHeaders.CONTENT_TYPE to MediaType.APPLICATION_JSON_VALUE,
-                dockerService.dockerContentDigestLabel to "sha256"
-            )
-        )
-        server.execute(status = statusCode, headers = headers) {
+
+        val mockResponse = MockResponse()
+            .setResponseCode(statusCode)
+            .addHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+            .addHeader(dockerService.dockerContentDigestLabel, "sha256")
+
+        server.execute(mockResponse) {
             val exception = catch { dockerService.getImageManifestInformation(imageRepoCommand) }
+
             assertThat(exception).isNotNull().isInstanceOf(SourceSystemException::class)
         }
     }
@@ -79,6 +79,7 @@ class DockerRegistryServiceNetworkTest {
 
         server.execute(response) {
             val exception = catch { dockerService.getImageTags(imageRepoCommand) }
+
             assertThat(exception).isNotNull().isInstanceOf(CantusException::class)
         }
     }
@@ -98,6 +99,7 @@ class DockerRegistryServiceNetworkTest {
 
         server.execute(response) {
             val exception = catch { dockerService.getImageManifestInformation(imageRepoCommand) }
+
             assertThat(exception).isNotNull().isInstanceOf(CantusException::class)
         }
     }
@@ -116,6 +118,7 @@ class DockerRegistryServiceNetworkTest {
 
         server.execute(response) {
             val result = dockerService.getImageTags(imageRepoCommand)
+
             assertThat(result).isNotNull()
         }
     }
