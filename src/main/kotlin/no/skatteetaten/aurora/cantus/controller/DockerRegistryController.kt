@@ -7,6 +7,7 @@ import kotlinx.coroutines.slf4j.MDCContext
 import no.skatteetaten.aurora.cantus.service.DockerRegistryService
 import no.skatteetaten.aurora.cantus.service.ImageManifestDto
 import no.skatteetaten.aurora.cantus.service.ImageTagsWithTypeDto
+import org.springframework.http.HttpHeaders
 import org.springframework.stereotype.Component
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
@@ -26,7 +27,7 @@ class DockerRegistryController(
     @PostMapping("/manifest")
     fun getManifestInformationList(
         @RequestBody tagUrls: List<String>,
-        @RequestHeader(required = false, value = "Authorization") bearerToken: String?
+        @RequestHeader(required = false, value = HttpHeaders.AUTHORIZATION) bearerToken: String?
     ): AuroraResponse<ImageTagResource> {
 
         val responses =
@@ -59,7 +60,7 @@ class DockerRegistryController(
     @GetMapping("/tags")
     fun getImageTags(
         @RequestParam repoUrl: String,
-        @RequestHeader(required = false, value = "Authorization") bearerToken: String?
+        @RequestHeader(required = false, value = HttpHeaders.AUTHORIZATION) bearerToken: String?
     ): AuroraResponse<TagResource> {
 
         val response =
@@ -76,7 +77,7 @@ class DockerRegistryController(
     @GetMapping("/tags/semantic")
     fun getImageTagsSemantic(
         @RequestParam repoUrl: String,
-        @RequestHeader(required = false, value = "Authorization") bearerToken: String?
+        @RequestHeader(required = false, value = HttpHeaders.AUTHORIZATION) bearerToken: String?
     ): AuroraResponse<GroupedTagResource> {
 
         val response = getResponse(bearerToken, repoUrl) { dockerService, imageRepoCommand ->
