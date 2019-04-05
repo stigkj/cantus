@@ -23,7 +23,7 @@ fun <T> Mono<T>.handleError(sourceSystem: String?) =
                 sourceSystem = sourceSystem
             )
             is SourceSystemException -> throw it
-            else -> throw CantusException("Unknown error in response or request", it)
+            else -> throw CantusException("Error in response or request (${it::class.simpleName})", it)
         }
     }
 
