@@ -11,3 +11,17 @@ The variables nedded are :
 - cantus.docker.urlsallowed = localhost, test (whitelist for docker registry urls)
 - cantus.docker.internal.urls = localhost (Cantus adds token to header if internal and uses https if it is not internal)
 
+ ## Setup
+ 
+ In order to use this project you must set repositories in your `~/.gradle/init.gradle` file
+ 
+     allprojects {
+         ext.repos= {
+             mavenCentral()
+             jcenter()
+         }
+         repositories repos
+         buildscript {
+          repositories repos
+         }
+     }
