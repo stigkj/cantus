@@ -1,0 +1,1 @@
+GET http://localhost:8080/tags?repoUrl=container-registry-internal-private-pull.aurora.skead.no:443/no_skatteetaten_aurora_demo/whoami

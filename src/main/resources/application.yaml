@@ -25,14 +25,19 @@ spring:
 cantus:
     username: cantus
     password: cantus
+    docker:
+        url: "container-registry-internal-private-pull.aurora.skead.no:443"
+        urlsallowed: "container-registry-internal-private-pull.aurora.skead.no:443, docker-registry.default.svc:5000"
+        internal:
+            urls: "docker-registry.default.svc:5000"
 
 server:
-    port: 8090
+    port: 8080
     max-http-header-size: 200000
 
 management:
     server:
-        port: 8000
+        port: 8081
 
 logging:
     pattern:
