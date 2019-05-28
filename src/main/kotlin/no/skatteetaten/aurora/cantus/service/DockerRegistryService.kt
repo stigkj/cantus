@@ -120,7 +120,7 @@ class DockerRegistryService(
         }
         .retrieve()
         .bodyToMono<T>()
-        .blockAndHandleError(sourceSystem = imageRepoCommand.registry)
+        .blockAndHandleError(imageRepoCommand = imageRepoCommand)
 
     private fun getManifestFromRegistry(
         imageRepoCommand: ImageRepoCommand,
@@ -150,7 +150,7 @@ class DockerRegistryService(
                 ImageManifestResponseDto(contentType, dockerContentDigest, it)
             }
         }
-        .handleError(imageRepoCommand.registry)
+        .handleError(imageRepoCommand)
         .block(Duration.ofSeconds(5))
 
     private fun imageManifestResponseToImageManifest(

@@ -1,30 +1,43 @@
 package no.skatteetaten.aurora.cantus.controller
 
+import io.netty.handler.timeout.ReadTimeoutException
 import org.springframework.web.reactive.function.client.ClientResponse
 import org.springframework.web.reactive.function.client.WebClientResponseException
 import reactor.core.publisher.Mono
 import reactor.core.publisher.toMono
 import java.time.Duration
 
-private val blockTimeout: Long = 30
+private const val blockTimeout: Long = 30
 
 fun <T> Mono<T>.blockAndHandleError(
     duration: Duration = Duration.ofSeconds(blockTimeout),
-    sourceSystem: String? = null
+    imageRepoCommand: ImageRepoCommand? = null
 ) =
-    this.handleError(sourceSystem).toMono().block(duration)
+    this.handleError(imageRepoCommand).toMono().block(duration)
 
-fun <T> Mono<T>.handleError(sourceSystem: String?) =
-    this.doOnError {
-        when (it) {
-            is WebClientResponseException -> throw SourceSystemException(
-                message = "Error in response, status=${it.statusCode} message=${it.statusText}",
-                cause = it,
-                sourceSystem = sourceSystem
-            )
-            is SourceSystemException -> throw it
-            else -> throw CantusException("Error in response or request (${it::class.simpleName})", it)
+fun <T> Mono<T>.handleError(imageRepoCommand: ImageRepoCommand?) =
+    try {
+        this.doOnError {
+            when (it) {
+                is WebClientResponseException -> throw SourceSystemException(
+                    message = "Error in response, status=${it.statusCode} message=${it.statusText}",
+                    cause = it,
+                    sourceSystem = imageRepoCommand?.registry
+                )
+                is SourceSystemException -> throw it
+                else -> throw CantusException("Error in response or request (${it::class.simpleName})", it)
+            }
         }
+    } catch (e: ReadTimeoutException) {
+        val imageMsg = imageRepoCommand?.let {
+            "imageGroup=\"${it.imageGroup}\" imageName=\"${it.imageName}\" imageTag=\"${it.imageTag}\""
+        } ?: "no existing ImageRepoCommand"
+
+        throw SourceSystemException(
+            message = "Timeout when calling docker registry, $imageMsg",
+            cause = e,
+            sourceSystem = imageRepoCommand?.registry
+        )
     }
 
 fun ClientResponse.handleStatusCodeError(sourceSystem: String?) {
