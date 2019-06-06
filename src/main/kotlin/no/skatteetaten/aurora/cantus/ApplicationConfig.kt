@@ -47,9 +47,11 @@ class ApplicationConfig {
     fun webClient(
         builder: WebClient.Builder,
         tcpClient: TcpClient,
-        @Value("\${spring.application.name}") applicationName: String
+        @Value("\${spring.application.name}") applicationName: String,
+        @Value("\${application.version:}") applicationVersion: String
     ) =
         builder
+            .defaultHeader(HttpHeaders.USER_AGENT, "cantus/$applicationVersion")
             .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
             .defaultHeader("KlientID", applicationName)
             .defaultHeader(AuroraHeaderFilter.KORRELASJONS_ID, RequestKorrelasjon.getId())
