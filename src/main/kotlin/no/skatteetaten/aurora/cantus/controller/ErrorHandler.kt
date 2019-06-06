@@ -39,7 +39,7 @@ private fun WebClientResponseException.handleException(imageRepoCommand: ImageRe
 
 private fun ReadTimeoutException.handleException(imageRepoCommand: ImageRepoCommand?) {
     val imageMsg = imageRepoCommand?.let { cmd ->
-        "imageGroup=\"${cmd.imageGroup}\" imageName=\"${cmd.imageName}\" imageTag=\"${cmd.imageTag}\""
+        "registry=\"${cmd.registry}\" imageGroup=\"${cmd.imageGroup}\" imageName=\"${cmd.imageName}\" imageTag=\"${cmd.imageTag}\""
     } ?: "no existing ImageRepoCommand"
     val msg = "Timeout when calling docker registry, $imageMsg"
     logger.error(this) { msg }
