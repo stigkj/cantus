@@ -15,6 +15,7 @@ import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.bodyToMono
+import reactor.retry.retryExponentialBackoff
 import java.time.Duration
 import java.util.HashSet
 
@@ -120,6 +121,25 @@ class DockerRegistryService(
         }
         .retrieve()
         .bodyToMono<T>()
+        .retryExponentialBackoff(
+            times = 3,
+            first = Duration.ofMillis(100),
+            max = Duration.ofSeconds(1),
+            doOnRetry = {
+                val e = it.exception()
+                val registry = imageRepoCommand.registry
+                val exceptionClass = e::class.simpleName
+                if (it.iteration() == 3L) {
+                    logger.warn(e) {
+                        "Last retry to registry=$registry, previous failed with exception=$exceptionClass"
+                    }
+                } else {
+                    logger.info {
+                        "Retry=${it.iteration()} for request to registry=$registry, previous failed with exception=$exceptionClass - message=\"${e.message}\""
+                    }
+                }
+            }
+        )
         .blockAndHandleError(imageRepoCommand = imageRepoCommand)
 
     private fun getManifestFromRegistry(

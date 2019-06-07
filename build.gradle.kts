@@ -32,6 +32,7 @@ dependencies {
     testImplementation("com.squareup.okhttp3:mockwebserver:3.13.1")
 
     implementation("org.springframework.boot:spring-boot-starter-webflux")
+    implementation("io.projectreactor.addons:reactor-extra:3.2.3.RELEASE")
     implementation("org.springframework.boot:spring-boot-starter-web")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 
