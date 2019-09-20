@@ -3,6 +3,7 @@ package no.skatteetaten.aurora.cantus.controller
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.nhaarman.mockito_kotlin.any
 import kotlinx.coroutines.newFixedThreadPoolContext
+import no.skatteetaten.aurora.cantus.AuroraIntegration
 import no.skatteetaten.aurora.cantus.ImageTagsWithTypeDtoBuilder
 import no.skatteetaten.aurora.cantus.service.DockerRegistryService
 import no.skatteetaten.aurora.mockmvc.extensions.Path
@@ -35,7 +36,8 @@ private const val defaultTestRegistry: String = "docker.com"
         DockerRegistryController::class,
         AuroraResponseAssembler::class,
         ImageTagResourceAssembler::class,
-        ImageRepoCommandAssembler::class
+        ImageRepoCommandAssembler::class,
+        AuroraIntegration::class
     ],
     secure = false
 )
@@ -57,15 +59,9 @@ class DockerRegistryControllerTest {
 
     private val tags = ImageTagsWithTypeDtoBuilder("no_skatteetaten_aurora_demo", "whoami").build()
 
-    @ParameterizedTest
-    @ValueSource(
-        strings = [
-            "/tags?repoUrl=no_skatteetaten_aurora_demo/whaomi",
-            "/tags/semantic?repoUrl=$defaultTestRegistry/no_skatteetaten_aurora"
-        ]
-    )
-    fun `Get request given invalid repoUrl throw BadRequestException`(path: String) {
-
+    @Test
+    fun `Get request given invalid repoUrl throw BadRequestException when missing registryUrl`() {
+        val path = "/tags?repoUrl=no_skatteetaten_aurora_demo/whaomi"
         val repoUrl = path.split("=")[1]
 
         mockMvc.get(Path(path)) {
@@ -73,7 +69,24 @@ class DockerRegistryControllerTest {
                 .responseJsonPath("$.items").isEmpty()
                 .responseJsonPath("$.success").isFalse()
                 .responseJsonPath("$.failure[0].url").equalsValue(repoUrl)
-                .responseJsonPath("$.failure[0].errorMessage").equalsValue("Invalid url=$repoUrl")
+                .responseJsonPath("$.failure[0].errorMessage")
+                .equalsValue("repo url=no_skatteetaten_aurora_demo/whaomi malformed pattern=url:port/group/name:tag")
+        }
+    }
+
+    @Test
+    fun `Get request given invalid repoUrl throw BadRequestException when missing name`() {
+
+        val path = "/tags/semantic?repoUrl=$defaultTestRegistry/no_skatteetaten_aurora"
+        val repoUrl = path.split("=")[1]
+
+        mockMvc.get(Path(path)) {
+            statusIsOk()
+                .responseJsonPath("$.items").isEmpty()
+                .responseJsonPath("$.success").isFalse()
+                .responseJsonPath("$.failure[0].url").equalsValue(repoUrl)
+                .responseJsonPath("$.failure[0].errorMessage")
+                .equalsValue("repo url=docker.com/no_skatteetaten_aurora malformed pattern=url:port/group/name:tag")
         }
     }
 
@@ -120,7 +133,7 @@ class DockerRegistryControllerTest {
                 .responseJsonPath("$.success").isFalse()
                 .responseJsonPath("$.failure[0].url").equalsValue(tagUrlsWrapper.tagUrls.first())
                 .responseJsonPath("$.failure[0].errorMessage")
-                .equalsValue("Invalid url=${tagUrlsWrapper.tagUrls.first()}")
+                .equalsValue("repo url= malformed pattern=url:port/group/name:tag")
         }
     }
 

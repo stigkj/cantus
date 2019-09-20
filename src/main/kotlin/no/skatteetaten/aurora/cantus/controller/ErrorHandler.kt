@@ -4,32 +4,65 @@ import io.netty.handler.timeout.ReadTimeoutException
 import mu.KotlinLogging
 import org.springframework.web.reactive.function.client.ClientResponse
 import org.springframework.web.reactive.function.client.WebClientResponseException
+import org.springframework.web.reactive.function.client.bodyToMono
 import reactor.core.publisher.Mono
 import reactor.core.publisher.toMono
+import reactor.retry.RetryExhaustedException
+import reactor.retry.retryExponentialBackoff
 import java.time.Duration
 
-private const val blockTimeout: Long = 30
+private const val blockTimeout: Long = 300
 private val logger = KotlinLogging.logger {}
+
+fun <T : Any?> Mono<T>.blockAndHandleErrorWithRetry(
+    message: String,
+    imageRepoCommand: ImageRepoCommand? = null,
+    duration: Duration = Duration.ofSeconds(blockTimeout)
+) =
+    this.retryRepoCommand(message).blockAndHandleError(duration, imageRepoCommand = imageRepoCommand, message = message)
+
+fun <T : Any?> Mono<T>.retryRepoCommand(message: String) = this.retryExponentialBackoff(
+    times = 3,
+    first = Duration.ofMillis(100),
+    max = Duration.ofSeconds(1)
+) {
+    val e = it.exception()
+    val exceptionClass = e::class.simpleName
+    if (it.iteration() == 3L) {
+        logger.warn {
+            "Retry=last $message exception=$exceptionClass message=${e.localizedMessage}"
+        }
+    } else {
+        logger.info {
+            "Retry=${it.iteration()} $message exception=$exceptionClass message=\"${e.message}\""
+        }
+    }
+}
 
 fun <T> Mono<T>.blockAndHandleError(
     duration: Duration = Duration.ofSeconds(blockTimeout),
-    imageRepoCommand: ImageRepoCommand? = null
+    imageRepoCommand: ImageRepoCommand? = null,
+    message: String? = null
 ) =
-    this.handleError(imageRepoCommand).toMono().block(duration)
+    this.handleError(imageRepoCommand, message).toMono().block(duration)
 
-fun <T> Mono<T>.handleError(imageRepoCommand: ImageRepoCommand?) =
+// TODO: Se på error handling i hele denne filen
+fun <T> Mono<T>.handleError(imageRepoCommand: ImageRepoCommand?, message: String? = null) =
     this.doOnError {
         when (it) {
-            is WebClientResponseException -> it.handleException(imageRepoCommand)
-            is ReadTimeoutException -> it.handleException(imageRepoCommand)
+            is WebClientResponseException -> it.handleException(imageRepoCommand, message)
+            is ReadTimeoutException -> it.handleException(imageRepoCommand, message)
             is SourceSystemException -> it.logAndRethrow()
-            else -> it.handleException()
+            is RetryExhaustedException -> it.handleException(imageRepoCommand, message)
+            else -> it.handleException(message)
         }
     }
 
-private fun WebClientResponseException.handleException(imageRepoCommand: ImageRepoCommand?) {
-    val msg = "Error in response, status=$statusCode message=$statusText"
-    logger.error(this) { msg }
+private fun RetryExhaustedException.handleException(imageRepoCommand: ImageRepoCommand?, message: String?) {
+    val cause = this.cause!!
+    val msg =
+        "Retry failed after 4 attempts cause=${cause::class.simpleName} lastError=${cause.localizedMessage} $message"
+    logger.warn { msg }
     throw SourceSystemException(
         message = msg,
         cause = this,
@@ -37,12 +70,23 @@ private fun WebClientResponseException.handleException(imageRepoCommand: ImageRe
     )
 }
 
-private fun ReadTimeoutException.handleException(imageRepoCommand: ImageRepoCommand?) {
+private fun WebClientResponseException.handleException(imageRepoCommand: ImageRepoCommand?, message: String?) {
+    val msg =
+        "Error in response, status=$statusCode message=$statusText body=\"${this.responseBodyAsString}\" request_url=\"${this.request?.uri}\" request_method=\"${this.request?.method?.toString()}\" $message"
+    logger.warn { msg }
+    throw SourceSystemException(
+        message = msg,
+        cause = this,
+        sourceSystem = imageRepoCommand?.registry
+    )
+}
+
+private fun ReadTimeoutException.handleException(imageRepoCommand: ImageRepoCommand?, message: String?) {
     val imageMsg = imageRepoCommand?.let { cmd ->
         "registry=\"${cmd.registry}\" imageGroup=\"${cmd.imageGroup}\" imageName=\"${cmd.imageName}\" imageTag=\"${cmd.imageTag}\""
     } ?: "no existing ImageRepoCommand"
-    val msg = "Timeout when calling docker registry, $imageMsg"
-    logger.error(this) { msg }
+    val msg = "Timeout when calling docker registry, $imageMsg $message"
+    logger.warn { msg }
     throw SourceSystemException(
         message = msg,
         cause = this,
@@ -55,42 +99,20 @@ private fun Throwable.logAndRethrow() {
     throw this
 }
 
-private fun Throwable.handleException() {
-    val msg = "Error in response or request (${this::class.simpleName})"
+private fun Throwable.handleException(message: String?) {
+    val msg = "Error in response or request name=${this::class.simpleName} errorMessage=${this.message} $message"
     logger.error(this) { msg }
     throw CantusException(msg, this)
 }
 
-fun ClientResponse.handleStatusCodeError(sourceSystem: String?) {
-
+fun <T> ClientResponse.handleStatusCodeError(sourceSystem: String?): Mono<T> {
     val statusCode = this.statusCode()
-
-    if (statusCode.is2xxSuccessful) {
-        return
+    return this.bodyToMono<String>().switchIfEmpty(Mono.just("")).flatMap { body ->
+        Mono.error<T>(
+            SourceSystemException(
+                message = "body=$body status=${statusCode.value()} message=${statusCode.reasonPhrase}",
+                sourceSystem = sourceSystem
+            )
+        )
     }
-
-    val message = when {
-        statusCode.is4xxClientError -> {
-            when (statusCode.value()) {
-                404 -> "Resource could not be found"
-                400 -> "Invalid request"
-                403 -> "Forbidden"
-                else -> "There has occurred a client error"
-            }
-        }
-        statusCode.is5xxServerError -> {
-            when (statusCode.value()) {
-                500 -> "An internal server error has occurred in the docker registry"
-                else -> "A server error has occurred"
-            }
-        }
-
-        else ->
-            "Unknown error occurred"
-    }
-
-    throw SourceSystemException(
-        message = "$message status=${statusCode.value()} message=${statusCode.reasonPhrase}",
-        sourceSystem = sourceSystem
-    )
 }

@@ -5,6 +5,7 @@ import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotNull
 import assertk.catch
 import no.skatteetaten.aurora.cantus.ApplicationConfig
+import no.skatteetaten.aurora.cantus.AuroraIntegration.AuthType.Bearer
 import no.skatteetaten.aurora.cantus.controller.CantusException
 import no.skatteetaten.aurora.cantus.controller.ImageRepoCommand
 import no.skatteetaten.aurora.cantus.controller.SourceSystemException
@@ -23,7 +24,7 @@ import org.springframework.http.MediaType
 import org.springframework.web.reactive.function.client.WebClient
 
 @TestInstance(TestInstance.Lifecycle.PER_METHOD)
-class DockerRegistryServiceNetworkTest {
+class DockerHttpClientNetworkTest {
 
     private val server = MockWebServer()
     private val url = server.url("/")
@@ -33,20 +34,20 @@ class DockerRegistryServiceNetworkTest {
         imageGroup = "no_skatteetaten_aurora_demo",
         imageName = "whoami",
         imageTag = "2",
-        bearerToken = "bearer token"
+        token = "bearer token",
+        authType = Bearer,
+        url = "http://${url.host}:${url.port}/v2"
     )
 
     private val applicationConfig = ApplicationConfig()
 
-    private val dockerService = DockerRegistryService(
+    private val httpClient = DockerHttpClient(
         applicationConfig.webClient(
             WebClient.builder(),
             applicationConfig.tcpClient(100, 100, 100, null),
             "cantus",
             "123"
-        ),
-        RegistryMetadataResolver(listOf(imageRepoCommand.registry)),
-        ImageRegistryUrlBuilder()
+        )
     )
 
     @AfterEach
@@ -61,10 +62,10 @@ class DockerRegistryServiceNetworkTest {
         val mockResponse = MockResponse()
             .setResponseCode(statusCode)
             .addHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-            .addHeader(dockerService.dockerContentDigestLabel, "sha256")
+            .addHeader(dockerContentDigestLabel, "sha256")
 
         server.execute(mockResponse) {
-            val exception = catch { dockerService.getImageManifestInformation(imageRepoCommand) }
+            val exception = catch { httpClient.getImageManifest(imageRepoCommand) }
 
             assertThat(exception).isNotNull().isInstanceOf(SourceSystemException::class)
         }
@@ -74,7 +75,7 @@ class DockerRegistryServiceNetworkTest {
     @ParameterizedTest
     @EnumSource(
         value = SocketPolicy::class,
-        names = ["DISCONNECT_AFTER_REQUEST", "DISCONNECT_DURING_RESPONSE_BODY", "NO_RESPONSE" /*, "STALL_SOCKET_AT_START" */],
+        names = ["DISCONNECT_AFTER_REQUEST", "DISCONNECT_DURING_RESPONSE_BODY", "NO_RESPONSE"],
         mode = EnumSource.Mode.INCLUDE
     )
     fun `Handle connection failure in retrieve that throws exception`(socketPolicy: SocketPolicy) {
@@ -84,7 +85,7 @@ class DockerRegistryServiceNetworkTest {
             .setJsonFileAsBody("dockerTagList.json")
 
         server.execute(response) {
-            val exception = catch { dockerService.getImageTags(imageRepoCommand) }
+            val exception = catch { httpClient.getImageTags(imageRepoCommand) }
 
             assertThat(exception).isNotNull().isInstanceOf(CantusException::class)
         }
@@ -100,11 +101,11 @@ class DockerRegistryServiceNetworkTest {
 
         val response = MockResponse()
             .setJsonFileAsBody("dockerManifestV1.json")
-            .addHeader(dockerService.dockerContentDigestLabel, "SHA::256")
+            .addHeader(dockerContentDigestLabel, "SHA::256")
             .apply { this.socketPolicy = socketPolicy }
 
         server.execute(response) {
-            val exception = catch { dockerService.getImageManifestInformation(imageRepoCommand) }
+            val exception = catch { httpClient.getImageManifest(imageRepoCommand) }
 
             assertThat(exception).isNotNull().isInstanceOf(CantusException::class)
         }
@@ -123,7 +124,7 @@ class DockerRegistryServiceNetworkTest {
             .setJsonFileAsBody("dockerTagList.json")
 
         server.execute(response) {
-            val result = dockerService.getImageTags(imageRepoCommand)
+            val result = httpClient.getImageTags(imageRepoCommand)
 
             assertThat(result).isNotNull()
         }

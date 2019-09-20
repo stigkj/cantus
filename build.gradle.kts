@@ -1,3 +1,5 @@
+
+
 plugins {
     id("org.springframework.cloud.contract")
     id("org.jetbrains.kotlin.jvm") version "1.3.50"
@@ -8,7 +10,7 @@ plugins {
     id("org.springframework.boot") version "2.1.8.RELEASE"
     id("org.asciidoctor.convert") version "2.3.0"
 
-    id("com.gorylenko.gradle-git-properties") version "2.0.0"
+    id("com.gorylenko.gradle-git-properties") version "2.1.0"
     id("com.github.ben-manes.versions") version "0.25.0"
     id("se.patrikerdes.use-latest-versions") version "0.2.12"
 
@@ -20,6 +22,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-slf4j:1.3.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.1")
 
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.2.0")
     testImplementation("org.jetbrains.kotlin:kotlin-test:1.3.50")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
     implementation("io.projectreactor.addons:reactor-extra:3.2.3.RELEASE")

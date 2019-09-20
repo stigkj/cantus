@@ -18,3 +18,16 @@ cantus:
         internal:
             urls: "docker.com,vg.no"
 
+
+integrations:
+    docker:
+        test1:
+            url: docker.com
+            auth: None
+        test2:
+            url: noBearerToken.com
+            https: false
+            auth: None
+        test3:
+            url: allowedurl.no
+            https: true

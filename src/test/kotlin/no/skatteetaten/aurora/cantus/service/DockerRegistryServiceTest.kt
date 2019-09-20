@@ -5,190 +5,171 @@ import assertk.assertions.contains
 import assertk.assertions.isEqualTo
 import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotNull
+import assertk.assertions.isTrue
 import assertk.assertions.message
 import assertk.catch
-import no.skatteetaten.aurora.cantus.ApplicationConfig
-import no.skatteetaten.aurora.cantus.controller.ForbiddenException
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.newFixedThreadPoolContext
+import no.skatteetaten.aurora.cantus.AuroraIntegration.AuthType.Bearer
 import no.skatteetaten.aurora.cantus.controller.ImageRepoCommand
 import no.skatteetaten.aurora.cantus.controller.SourceSystemException
-import no.skatteetaten.aurora.mockmvc.extensions.mockwebserver.execute
-import no.skatteetaten.aurora.mockmvc.extensions.mockwebserver.setJsonFileAsBody
-import okhttp3.mockwebserver.MockResponse
-import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.Test
-import org.springframework.web.reactive.function.client.WebClient
+import org.springframework.util.ResourceUtils
+import reactor.core.publisher.Mono
+import reactor.core.publisher.toMono
 
 class DockerRegistryServiceTest {
-    private val server = MockWebServer()
-    private val url = server.url("/")
 
-    private val imageRepoCommand = ImageRepoCommand(
-        registry = "${url.host}:${url.port}",
+    private val from = ImageRepoCommand(
+        registry = "test.com:5000}",
         imageGroup = "no_skatteetaten_aurora_demo",
         imageName = "whoami",
         imageTag = "2",
-        bearerToken = "bearer token"
+        token = "bearer token",
+        authType = Bearer,
+        url = "http://test.com:5000/v2"
     )
 
-    private val dockerServiceNoBearer = DockerRegistryService(
-        WebClient.create(),
-        RegistryMetadataResolver(listOf("noBearerToken.com")),
-        ImageRegistryUrlBuilder()
+    private val to = from.copy(registry = "test2.com:5000")
+
+    private val objectMapper = jacksonObjectMapper()
+
+    private val dtoV2 = ImageManifestResponseDto(
+        contentType = manifestV2,
+        dockerContentDigest = "sha256",
+        manifestBody = objectMapper.readTestResourceAsJson("dockerManifestV2.json")
     )
-
-    private val imageRepoCommandNoToken =
-        ImageRepoCommand("noBearerToken.com", "no_skatteetaten_aurora_demo", "whoami", "2")
-
-    private val applicationConfig = ApplicationConfig()
+    private val httpClient = mockk<DockerHttpClient>()
 
     private val dockerService = DockerRegistryService(
-        applicationConfig.webClient(
-            WebClient.builder(),
-            applicationConfig.tcpClient(100, 100, 100, null),
-            "cantus",
-            "123"
-        ),
-        RegistryMetadataResolver(listOf(imageRepoCommand.registry)),
-        ImageRegistryUrlBuilder()
+        httpClient,
+        newFixedThreadPoolContext(6, "cantus")
     )
 
     @Test
-    fun `Verify fetches manifest information for specified image`() {
-        val response =
-            MockResponse()
-                .setJsonFileAsBody("dockerManifestV1.json")
-                .addHeader("Docker-Content-Digest", "SHA::256")
+    fun `Verify that if V2 content type is set then retrieve manifest with V2 method`() {
+        every {
+            httpClient.getImageManifest(any())
+        } returns dtoV2
 
-        server.execute(response) {
-            val jsonResponse = dockerService.getImageManifestInformation(imageRepoCommand)
-            assertThat(jsonResponse).isNotNull().given {
-                assertThat(it.dockerDigest).isEqualTo("SHA::256")
-                assertThat(it.dockerVersion).isEqualTo("1.13.1")
-                assertThat(it.buildEnded).isEqualTo("2018-11-05T14:01:22.654389192Z")
-            }
+        every {
+            httpClient.getConfig(
+                any(),
+                any()
+            )
+        } returns objectMapper.readTestResourceAsJson("dockerManifestV2Config.json")
+
+        val jsonResponse = dockerService.getImageManifestInformation(from)
+
+        assertThat(jsonResponse).isNotNull().given {
+            assertThat(it.dockerDigest).isEqualTo("sha256")
+            assertThat(it.nodeVersion).isEqualTo(null)
+            assertThat(it.buildEnded).isEqualTo("2018-11-05T14:01:22.654389192Z")
+            assertThat(it.java?.major).isEqualTo("8")
         }
     }
 
     @Test
-    fun `Verify fetches all tags for specified image`() {
-        val response = MockResponse().setJsonFileAsBody("dockerTagList.json")
+    fun `Verify that V2 manifest not found is handled`() {
 
-        server.execute(response) {
-            val jsonResponse: ImageTagsWithTypeDto = dockerService.getImageTags(imageRepoCommand)
-            assertThat(jsonResponse).isNotNull().given {
-                assertThat(it.tags.size).isEqualTo(5)
-                assertThat(it.tags[0].name).isEqualTo("0")
-                assertThat(it.tags[1].name).isEqualTo("0.0")
-                assertThat(it.tags[2].name).isEqualTo("0.0.0")
-            }
+        every {
+            httpClient.getImageManifest(any())
+        } returns dtoV2
+
+        every {
+            httpClient.getConfig(
+                any(),
+                any()
+            )
+        } throws SourceSystemException("Unable to retrieve V2 manifest", sourceSystem = "registry")
+
+        val exception = catch { dockerService.getImageManifestInformation(from) }
+        assertThat(exception)
+            .isNotNull().isInstanceOf(SourceSystemException::class)
+            .message().isNotNull().contains("Unable to retrieve V2 manifest")
+    }
+
+    @Test
+    fun `Verify fetches all tags for specified image`() {
+
+        every { httpClient.getImageTags(any()) } returns ImageTagsResponseDto(
+            listOf(
+                "0", "0.0", "0.0.0", "0.0.0-b1.17.0-flange-8.181.1", "latest"
+            )
+        )
+
+        val tags = dockerService.getImageTags(from)
+
+        assertThat(tags).isNotNull().given {
+            assertThat(it.tags.size).isEqualTo(5)
+            assertThat(it.tags[0].name).isEqualTo("0")
+            assertThat(it.tags[1].name).isEqualTo("0.0")
+            assertThat(it.tags[2].name).isEqualTo("0.0.0")
         }
     }
 
     @Test
     fun `Verify that empty tag list throws SourceSystemException`() {
-        server.execute(ImageTagsResponseDto(emptyList())) {
-            val exception = catch { dockerService.getImageTags(imageRepoCommand) }
+        every { httpClient.getImageTags(any()) } returns ImageTagsResponseDto(
+            emptyList()
+        )
 
-            assertThat(exception)
-                .isNotNull().isInstanceOf(SourceSystemException::class)
-                .message().isNotNull().contains("status=404 message=Not Found")
-        }
-    }
+        val exception = catch { dockerService.getImageTags(from) }
 
-    @Test
-    fun `Verify that empty manifest response throws SourceSystemException`() {
-        val response = MockResponse().addHeader(dockerService.dockerContentDigestLabel, "sha::256")
-
-        server.execute(response) {
-            val exception = catch { dockerService.getImageManifestInformation(imageRepoCommand) }
-
-            assertThat(exception).isNotNull().isInstanceOf(SourceSystemException::class)
-        }
-    }
-
-    @Test
-    fun `Verify that empty body throws SourceSystemException`() {
-        val response = MockResponse()
-            .setJsonFileAsBody("emptyDockerManifestV1.json")
-            .addHeader("Docker-Content-Digest", "SHA::256")
-
-        server.execute(response) {
-            val exception = catch { dockerService.getImageManifestInformation(imageRepoCommand) }
-
-            assertThat(exception).isNotNull().isInstanceOf(SourceSystemException::class)
-        }
-    }
-
-    @Test
-    fun `Verify that non existing Docker-Content-Digest throws SourceSystemException`() {
-        val response = MockResponse()
-            .setJsonFileAsBody("dockerManifestV1.json")
-
-        server.execute(response) {
-            val exception = catch { dockerService.getImageManifestInformation(imageRepoCommand) }
-
-            assertThat(exception)
-                .isNotNull().isInstanceOf(SourceSystemException::class)
-                .message().isNotNull().contains("Response did not contain")
-        }
-    }
-
-    @Test
-    fun `Get image tags given missing authorization token throws ForbiddenException`() {
-        val exception = catch { dockerServiceNoBearer.getImageTags(imageRepoCommandNoToken) }
         assertThat(exception)
-            .isNotNull().isInstanceOf(ForbiddenException::class)
-            .message().isNotNull().isEqualTo("Authorization bearer token is not present")
+            .isNotNull().isInstanceOf(SourceSystemException::class)
+            .message().isNotNull().contains("status=404 message=Not Found")
     }
 
     @Test
-    fun `Get image manifest given missing authorization token throws ForbiddenException`() {
-        val exception = catch { dockerServiceNoBearer.getImageManifestInformation(imageRepoCommandNoToken) }
-        assertThat(exception)
-            .isNotNull().isInstanceOf(ForbiddenException::class)
-            .message().isNotNull().isEqualTo("Authorization bearer token is not present")
+    fun `should find blobs for v2`() {
+        val layers = dockerService.findBlobs(dtoV2)
+        assertThat(layers.size).isEqualTo(4)
+    }
+
+    fun ObjectMapper.readTestResourceAsJson(fileName: String): JsonNode {
+        return this.readValue(ResourceUtils.getURL("src/test/resources/$fileName"))
     }
 
     @Test
-    fun `Verify that if V2 content type is set then retrieve manifest with V2 method`() {
-        val response = MockResponse()
-            .setJsonFileAsBody("dockerManifestV2.json")
-            .setHeader("Content-Type", "application/vnd.docker.distribution.manifest.v2+json")
-            .addHeader("Docker-Content-Digest", "sha256")
+    fun `should tag from one repo to another when all digest exist`() {
 
-        val response2 = MockResponse()
-            .setJsonFileAsBody("dockerManifestV2Config.json")
+        every {
+            httpClient.getImageManifest(any())
+        } returns dtoV2
 
-        val requests = server.execute(response, response2) {
+        every { httpClient.digestExistInRepo(any(), any()) } returns true
 
-            val jsonResponse = dockerService.getImageManifestInformation(imageRepoCommand)
+        every { httpClient.putManifest(any(), any()) } returns true
 
-            assertThat(jsonResponse).isNotNull().given {
-                assertThat(it.dockerDigest).isEqualTo("sha256")
-                assertThat(it.nodeVersion).isEqualTo(null)
-                assertThat(it.buildEnded).isEqualTo("2018-11-05T14:01:22.654389192Z")
-                assertThat(it.java?.major).isEqualTo("8")
-            }
-        }
-        assertThat(requests.size).isEqualTo(2)
+        val result = dockerService.tagImage(
+            from = from, to = to
+        )
+
+        assertThat(result).isTrue()
     }
 
     @Test
-    fun `Verify that V2 manifest not found is handled`() {
-        val response = MockResponse()
-            .setJsonFileAsBody("dockerManifestV2.json")
-            .setHeader("Content-Type", "application/vnd.docker.distribution.manifest.v2+json")
-            .addHeader("Docker-Content-Digest", "sha256")
+    fun `should put non existing blob`() {
+        val digest = "sha256::foobar"
+        val uuid = "uuid-is-this"
 
-        val response2 = MockResponse()
+        val blob: Mono<ByteArray> = "this is teh content".toByteArray().toMono()
 
-        val requests = server.execute(response, response2) {
-            val exception = catch { dockerService.getImageManifestInformation(imageRepoCommand) }
+        every { httpClient.digestExistInRepo(to, digest) } returns false
 
-            assertThat(exception)
-                .isNotNull().isInstanceOf(SourceSystemException::class)
-                .message().isNotNull().contains("Unable to retrieve V2 manifest")
-        }
-        assertThat(requests.size).isEqualTo(2)
+        every { httpClient.getUploadUUID(to) } returns uuid
+
+        every { httpClient.getLayer(from, digest) } returns blob
+
+        every { httpClient.uploadLayer(to, uuid, digest, blob) } returns true
+
+        val result = dockerService.ensureBlobExist(from, to, digest)
+        assertThat(result).isTrue()
     }
 }

@@ -10,6 +10,8 @@ import java.time.Instant
 
 private val logger = KotlinLogging.logger {}
 
+data class TagCommandResource(val result: Boolean) : HalResource()
+
 data class TagResource(val name: String, val type: ImageTagType = ImageTagType.typeOf(name)) : HalResource()
 
 data class GroupedTagResource(

@@ -58,13 +58,20 @@ class ApplicationConfig {
             .exchangeStrategies(exchangeStrategies())
             .filter(ExchangeFilterFunction.ofRequestProcessor {
                 val bearer = it.headers()[HttpHeaders.AUTHORIZATION]?.firstOrNull()?.let { token ->
-                    val t = token.substring(0, min(token.length, 11)).replace("Bearer", "")
-                    "bearer=$t"
+                    val (name, value) = token.substring(0, min(token.length, 11)).split(" ")
+                    "$name=$value"
                 } ?: ""
-                logger.debug("HttpRequest method=${it.method()} url=${it.url()} token=$bearer")
+                logger.debug("HttpRequest method=${it.method()} url=${it.url()} $bearer")
                 it.toMono()
             })
-            .clientConnector(ReactorClientHttpConnector(HttpClient.from(tcpClient).compress(true))).build()
+            .clientConnector(
+                ReactorClientHttpConnector(
+                    HttpClient
+                        .from(tcpClient)
+                        .compress(true)
+                    //  .wiretap(true) // TODO : REMOVE
+                )
+            ).build()
 
     private fun exchangeStrategies(): ExchangeStrategies {
         val objectMapper = createObjectMapper()
