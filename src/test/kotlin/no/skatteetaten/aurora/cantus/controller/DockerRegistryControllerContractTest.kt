@@ -111,7 +111,7 @@ class DockerRegistryControllerContractTest {
     fun `Get docker registry image tags with GET`() {
         val path = "/tags?repoUrl=url/namespace/name"
 
-        given(dockerService.getImageTags(any())).willReturn(tags)
+        given(dockerService.getImageTags(any(), any())).willReturn(tags)
 
         val tagResource = given(mockedImageTagResourceAssembler.tagResourceToAuroraResponse(any()))
             .withContractResponse("tagresource/TagResource") {
@@ -125,29 +125,11 @@ class DockerRegistryControllerContractTest {
     }
 
     @Test
-    fun `Get docker registry image tags grouped with GET`() {
-        val path = "/tags/semantic?repoUrl=url/namespace/name"
-
-        given(dockerService.getImageTags(any())).willReturn(tags)
-
-        val groupedTagResource =
-            given(mockedImageTagResourceAssembler.groupedTagResourceToAuroraResponse(any()))
-                .withContractResponse("tagresource/GroupedTagResource") {
-                    willReturn(content)
-                }.mockResponse
-
-        mockMvc.get(Path(path)) {
-            statusIsOk()
-                .responseJsonPath("$").equalsObject(groupedTagResource)
-        }
-    }
-
-    @Test
     fun `Get docker registry image tags with GET given missing resource`() {
         val path = "/tags?repoUrl=url/namespace/missing"
         val notFoundStatus = HttpStatus.NOT_FOUND
 
-        given(dockerService.getImageTags(any())).willThrow(
+        given(dockerService.getImageTags(any(), any())).willThrow(
             SourceSystemException(
                 message = "Resource could not be found status=${notFoundStatus.value()} message=${notFoundStatus.reasonPhrase}",
                 sourceSystem = "https://docker.com"

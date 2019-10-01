@@ -117,12 +117,13 @@ class DockerRegistryController(
     @GetMapping("/tags")
     fun getImageTags(
         @RequestParam repoUrl: String,
+        @RequestParam filter: String?,
         @RequestHeader(required = false, value = HttpHeaders.AUTHORIZATION) bearerToken: String?
     ): AuroraResponse<TagResource> {
         val watch = StopWatch().apply { this.start() }
         val response =
             getResponse(bearerToken, repoUrl) { dockerService, imageRepoCommand ->
-                dockerService.getImageTags(imageRepoCommand).let { tags ->
+                dockerService.getImageTags(imageRepoCommand, filter).let { tags ->
                     val tagResponse = imageTagResourceAssembler.toTagResource(tags)
                     tagResponse
                 }
@@ -131,24 +132,6 @@ class DockerRegistryController(
         return imageTagResourceAssembler.tagResourceToAuroraResponse(response).also {
             watch.stop()
             logger.debug { "Get imageTags tookMs=${watch.totalTimeMillis} url=$repoUrl" }
-        }
-    }
-
-    @GetMapping("/tags/semantic")
-    fun getImageTagsSemantic(
-        @RequestParam repoUrl: String,
-        @RequestHeader(required = false, value = HttpHeaders.AUTHORIZATION) bearerToken: String?
-    ): AuroraResponse<GroupedTagResource> {
-
-        val watch = StopWatch().apply { this.start() }
-        val response = getResponse(bearerToken, repoUrl) { dockerService, imageRepoCommand ->
-            dockerService.getImageTags(imageRepoCommand)
-                .let { tags -> imageTagResourceAssembler.toGroupedTagResource(tags, imageRepoCommand.defaultRepo) }
-        }
-
-        return imageTagResourceAssembler.groupedTagResourceToAuroraResponse(response).also {
-            watch.stop()
-            logger.debug { "Get semantic tags tookMs=${watch.totalTimeMillis} url=$repoUrl" }
         }
     }
 
@@ -174,26 +157,8 @@ class ImageTagResourceAssembler(val auroraResponseAssembler: AuroraResponseAssem
     fun tagResourceToAuroraResponse(resources: Try<List<TagResource>, CantusFailure>) =
         auroraResponseAssembler.toAuroraResponse(resources)
 
-    fun groupedTagResourceToAuroraResponse(resources: Try<List<GroupedTagResource>, CantusFailure>) =
-        auroraResponseAssembler.toAuroraResponse(resources)
-
     fun toTagResource(imageTagsWithTypeDto: ImageTagsWithTypeDto) =
         imageTagsWithTypeDto.tags.map { TagResource(it.name) }
-
-    fun toGroupedTagResource(imageTagsWithTypeDto: ImageTagsWithTypeDto, repoUrl: String) =
-        imageTagsWithTypeDto.tags
-            .groupBy { it.type }
-            .map { groupedTag ->
-                GroupedTagResource(
-                    group = groupedTag.key.toString(),
-                    tagResource = groupedTag.value.map {
-                        TagResource(
-                            name = it.name,
-                            type = it.type
-                        )
-                    }
-                )
-            }
 
     fun toImageTagResource(manifestDto: ImageManifestDto, requestUrl: String) =
         ImageTagResource(

@@ -2,6 +2,7 @@ package no.skatteetaten.aurora.cantus.controller
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.nhaarman.mockito_kotlin.any
+import com.nhaarman.mockito_kotlin.eq
 import kotlinx.coroutines.newFixedThreadPoolContext
 import no.skatteetaten.aurora.cantus.AuroraIntegration
 import no.skatteetaten.aurora.cantus.ImageTagsWithTypeDtoBuilder
@@ -77,7 +78,7 @@ class DockerRegistryControllerTest {
     @Test
     fun `Get request given invalid repoUrl throw BadRequestException when missing name`() {
 
-        val path = "/tags/semantic?repoUrl=$defaultTestRegistry/no_skatteetaten_aurora"
+        val path = "/tags/?repoUrl=$defaultTestRegistry/no_skatteetaten_aurora"
         val repoUrl = path.split("=")[1]
 
         mockMvc.get(Path(path)) {
@@ -141,7 +142,7 @@ class DockerRegistryControllerTest {
     fun `Get tags given no authorization token throw ForbiddenException`() {
         val path = "/tags?repoUrl=$defaultTestRegistry/no_skatteetaten_aurora_demo/whoami"
 
-        given(dockerService.getImageTags(any()))
+        given(dockerService.getImageTags(any(), eq(null)))
             .willThrow(ForbiddenException("Authorization bearer token is not present"))
 
         mockMvc.get(Path(path)) {
@@ -174,12 +175,11 @@ class DockerRegistryControllerTest {
     @ParameterizedTest
     @ValueSource(
         strings = [
-            "/tags?repoUrl=$defaultTestRegistry/no_skatteetaten_aurora_demo/whoami",
-            "/tags/semantic?repoUrl=$defaultTestRegistry/no_skatteetaten_aurora_demo/whoami"
+            "/tags?repoUrl=$defaultTestRegistry/no_skatteetaten_aurora_demo/whoami"
         ]
     )
     fun `Get request given throw IllegalStateException`(path: String) {
-        given(dockerService.getImageTags(any()))
+        given(dockerService.getImageTags(any(), eq(null)))
             .willThrow(IllegalStateException("An error has occurred"))
 
         mockMvc.get(Path(path)) {
@@ -208,31 +208,10 @@ class DockerRegistryControllerTest {
     }
 
     @Test
-    fun `Verify groups tags correctly`() {
-        val path = "/tags/semantic?repoUrl=$defaultTestRegistry/no_skatteetaten_aurora_demo/whoami"
-
-        given(
-            dockerService.getImageTags(any())
-        ).willReturn(tags)
-
-        mockMvc.get(Path(path)) {
-            statusIsOk()
-                .responseJsonPath("$.count").equalsValue(3)
-                .responseJsonPath("$.success").equalsValue(true)
-                .responseJsonPath("$.items[0].group").equalsValue("MAJOR")
-                .responseJsonPath("$.items[0].tagResource[0].name").equalsValue("0")
-                .responseJsonPath("$.items[0].itemsInGroup").equalsValue(1)
-                .responseJsonPath("$.items[2].group").equalsValue("BUGFIX")
-                .responseJsonPath("$.items[2].tagResource[0].name").equalsValue("0.0.0")
-                .responseJsonPath("$.items[2].itemsInGroup").equalsValue(1)
-        }
-    }
-
-    @Test
     fun `Verify that allowed override docker registry url is validated as allowed`() {
         val path = "/tags?repoUrl=allowedurl.no/no_skatteetaten_aurora_demo/whoami"
 
-        given(dockerService.getImageTags(any()))
+        given(dockerService.getImageTags(any(), eq(null)))
             .willReturn(tags)
 
         mockMvc.get(Path(path)) {
@@ -247,7 +226,7 @@ class DockerRegistryControllerTest {
         val path = "/tags?repoUrl=$repoUrl"
 
         given(
-            dockerService.getImageTags(any())
+            dockerService.getImageTags(any(), any())
         ).willReturn(tags)
 
         mockMvc.get(Path(path)) {

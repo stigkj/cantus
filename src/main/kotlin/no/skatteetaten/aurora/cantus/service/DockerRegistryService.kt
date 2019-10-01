@@ -101,6 +101,7 @@ class DockerRegistryService(
             jolokiaVersion = imageManifestEnvInformation["JOLOKIA_VERSION"]
         )
     }
+
     private fun JsonNode.getVariableFromManifestBody(label: String) = this.get(label)?.asText() ?: ""
 
     fun findBlobs(manifest: ImageManifestResponseDto): List<String> {
@@ -119,7 +120,10 @@ class DockerRegistryService(
         )
     }
 
-    fun getImageTags(imageRepoCommand: ImageRepoCommand): ImageTagsWithTypeDto {
+    fun getImageTags(
+        imageRepoCommand: ImageRepoCommand,
+        filter: String? = null
+    ): ImageTagsWithTypeDto {
 
         val url = imageRepoCommand.registry
         val tagsResponse = httpClient.getImageTags(imageRepoCommand)
@@ -130,8 +134,11 @@ class DockerRegistryService(
                 sourceSystem = url
             )
         }
+        val filteredTags = filter?.let { f ->
+            tagsResponse.tags.filter { it.toLowerCase().contains(f.toLowerCase()) }
+        } ?: tagsResponse.tags
 
-        return ImageTagsWithTypeDto(tags = tagsResponse.tags.map {
+        return ImageTagsWithTypeDto(tags = filteredTags.map {
             ImageTagTypedDto(it)
         })
     }

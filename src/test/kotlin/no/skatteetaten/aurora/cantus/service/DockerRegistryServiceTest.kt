@@ -3,11 +3,11 @@ package no.skatteetaten.aurora.cantus.service
 import assertk.assertThat
 import assertk.assertions.contains
 import assertk.assertions.isEqualTo
+import assertk.assertions.isFailure
 import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotNull
 import assertk.assertions.isTrue
 import assertk.assertions.message
-import assertk.catch
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -88,9 +88,9 @@ class DockerRegistryServiceTest {
             )
         } throws SourceSystemException("Unable to retrieve V2 manifest", sourceSystem = "registry")
 
-        val exception = catch { dockerService.getImageManifestInformation(from) }
-        assertThat(exception)
-            .isNotNull().isInstanceOf(SourceSystemException::class)
+        assertThat {
+            dockerService.getImageManifestInformation(from)
+        }.isFailure().isNotNull().isInstanceOf(SourceSystemException::class)
             .message().isNotNull().contains("Unable to retrieve V2 manifest")
     }
 
@@ -114,14 +114,30 @@ class DockerRegistryServiceTest {
     }
 
     @Test
+    fun `Verify fetches all tags for specified image and filter them`() {
+
+        every { httpClient.getImageTags(any()) } returns ImageTagsResponseDto(
+            listOf(
+                "0", "0.0", "0.0.0", "0.0.0-b1.17.0-flange-8.181.1", "latest"
+            )
+        )
+
+        val tags = dockerService.getImageTags(from, "flange")
+
+        assertThat(tags).isNotNull().given {
+            assertThat(it.tags.size).isEqualTo(1)
+            assertThat(it.tags[0].name).isEqualTo("0.0.0-b1.17.0-flange-8.181.1")
+        }
+    }
+
+    @Test
     fun `Verify that empty tag list throws SourceSystemException`() {
         every { httpClient.getImageTags(any()) } returns ImageTagsResponseDto(
             emptyList()
         )
 
-        val exception = catch { dockerService.getImageTags(from) }
-
-        assertThat(exception)
+        assertThat { dockerService.getImageTags(from) }
+            .isFailure()
             .isNotNull().isInstanceOf(SourceSystemException::class)
             .message().isNotNull().contains("status=404 message=Not Found")
     }

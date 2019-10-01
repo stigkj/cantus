@@ -5,12 +5,12 @@ import assertk.assertThat
 import assertk.assertions.contains
 import assertk.assertions.hasSize
 import assertk.assertions.isEqualTo
+import assertk.assertions.isFailure
 import assertk.assertions.isFalse
 import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotNull
 import assertk.assertions.isTrue
 import assertk.assertions.message
-import assertk.catch
 import no.skatteetaten.aurora.cantus.ApplicationConfig
 import no.skatteetaten.aurora.cantus.AuroraIntegration.AuthType.Bearer
 import no.skatteetaten.aurora.cantus.controller.CantusException
@@ -81,8 +81,8 @@ class DockerHttpClientTest {
         val fail = MockResponse().setResponseCode(404)
 
         val requests = server.execute(fail, fail, fail, fail) {
-            val exception = catch { httpClient.uploadLayer(imageRepoCommand, "uuid", "digest", content) }
-            assertThat(exception)
+            assertThat { httpClient.uploadLayer(imageRepoCommand, "uuid", "digest", content) }
+                .isFailure()
                 .isNotNull().isInstanceOf(CantusException::class)
                 .message().isNotNull()
                 .contains("Retry failed")
@@ -114,9 +114,8 @@ class DockerHttpClientTest {
         val response = MockResponse().setResponseCode(404)
             .setBody("{\"errors\":[{\"code\":\"BLOB_UNKNOWN\",\"message\":\"blob unknown to registry\",\"detail\":\"sha256:303510ed0dee065d6dc0dd4fbb1833aa27ff6177e7dfc72881ea4ea0716c82a1\"}]}")
         server.execute(response, response, response, response) {
-            val exception = catch { httpClient.putManifest(imageRepoCommand, manifest) }
-            assertThat(exception)
-                .isNotNull().isInstanceOf(SourceSystemException::class)
+            assertThat { httpClient.putManifest(imageRepoCommand, manifest) }
+                .isFailure().isNotNull().isInstanceOf(SourceSystemException::class)
                 .message().isNotNull()
                 .contains("cause=NotFound lastError=404 Not Found operation=PUT_MANIFEST")
         }
@@ -126,9 +125,8 @@ class DockerHttpClientTest {
     fun `test digest authentication failed`() {
         val response = MockResponse().setResponseCode(401).setBody("Unauthorized")
         server.execute(response, response, response, response) {
-            val exception = catch { httpClient.digestExistInRepo(imageRepoCommand, "abc") }
-            assertThat(exception)
-                .isNotNull().isInstanceOf(SourceSystemException::class)
+            assertThat { httpClient.digestExistInRepo(imageRepoCommand, "abc") }
+                .isFailure().isNotNull().isInstanceOf(SourceSystemException::class)
                 .message().isNotNull()
                 .contains("cause=Unauthorized lastError=401 Unauthorized operation=BLOB_EXIST")
         }
@@ -192,9 +190,8 @@ class DockerHttpClientTest {
                 .setResponseCode(404)
 
         server.execute(response, response, response, response) {
-            val exception = catch { httpClient.getConfig(imageRepoCommand, "SHA::256") }
-
-            assertThat(exception).isNotNull().isInstanceOf(SourceSystemException::class)
+            assertThat { httpClient.getConfig(imageRepoCommand, "SHA::256") }
+                .isFailure().isNotNull().isInstanceOf(SourceSystemException::class)
         }
     }
 
@@ -249,9 +246,8 @@ class DockerHttpClientTest {
         val response = MockResponse().addHeader(dockerContentDigestLabel, "sha::256")
 
         server.execute(response) {
-            val exception = catch { httpClient.getImageManifest(imageRepoCommand) }
-
-            assertThat(exception).isNotNull().isInstanceOf(SourceSystemException::class)
+            assertThat { httpClient.getImageManifest(imageRepoCommand) }
+                .isFailure().isNotNull().isInstanceOf(SourceSystemException::class)
         }
     }
 
@@ -261,9 +257,8 @@ class DockerHttpClientTest {
             .setJsonFileAsBody("dockerManifestV1.json")
 
         server.execute(response) {
-            val exception = catch { httpClient.getImageManifest(imageRepoCommand) }
-
-            assertThat(exception)
+            assertThat { httpClient.getImageManifest(imageRepoCommand) }
+                .isFailure()
                 .isNotNull().isInstanceOf(SourceSystemException::class)
                 .message().isNotNull()
                 .contains("Only v2 manifest is supported. contentType=application/json;charset=UTF-8")

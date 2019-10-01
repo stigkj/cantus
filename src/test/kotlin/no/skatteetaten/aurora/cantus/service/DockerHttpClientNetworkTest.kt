@@ -1,9 +1,9 @@
 package no.skatteetaten.aurora.cantus.service
 
 import assertk.assertThat
+import assertk.assertions.isFailure
 import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotNull
-import assertk.catch
 import no.skatteetaten.aurora.cantus.ApplicationConfig
 import no.skatteetaten.aurora.cantus.AuroraIntegration.AuthType.Bearer
 import no.skatteetaten.aurora.cantus.controller.CantusException
@@ -65,9 +65,10 @@ class DockerHttpClientNetworkTest {
             .addHeader(dockerContentDigestLabel, "sha256")
 
         server.execute(mockResponse) {
-            val exception = catch { httpClient.getImageManifest(imageRepoCommand) }
-
-            assertThat(exception).isNotNull().isInstanceOf(SourceSystemException::class)
+            assertThat { httpClient.getImageManifest(imageRepoCommand) }
+                .isFailure()
+                .isNotNull()
+                .isInstanceOf(SourceSystemException::class)
         }
     }
 
@@ -85,9 +86,10 @@ class DockerHttpClientNetworkTest {
             .setJsonFileAsBody("dockerTagList.json")
 
         server.execute(response) {
-            val exception = catch { httpClient.getImageTags(imageRepoCommand) }
-
-            assertThat(exception).isNotNull().isInstanceOf(CantusException::class)
+            assertThat { httpClient.getImageTags(imageRepoCommand) }
+                .isFailure()
+                .isNotNull()
+                .isInstanceOf(CantusException::class)
         }
     }
 
@@ -105,9 +107,8 @@ class DockerHttpClientNetworkTest {
             .apply { this.socketPolicy = socketPolicy }
 
         server.execute(response) {
-            val exception = catch { httpClient.getImageManifest(imageRepoCommand) }
-
-            assertThat(exception).isNotNull().isInstanceOf(CantusException::class)
+            assertThat { httpClient.getImageManifest(imageRepoCommand) }
+                .isFailure().isNotNull().isInstanceOf(CantusException::class)
         }
     }
 
