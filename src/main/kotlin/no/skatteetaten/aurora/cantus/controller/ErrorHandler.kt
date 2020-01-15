@@ -52,7 +52,6 @@ fun <T> Mono<T>.handleError(imageRepoCommand: ImageRepoCommand?, message: String
         when (it) {
             is WebClientResponseException -> it.handleException(imageRepoCommand, message)
             is ReadTimeoutException -> it.handleException(imageRepoCommand, message)
-            is SourceSystemException -> it.logAndRethrow()
             is RetryExhaustedException -> it.handleException(imageRepoCommand, message)
             else -> it.handleException(message)
         }
@@ -94,15 +93,19 @@ private fun ReadTimeoutException.handleException(imageRepoCommand: ImageRepoComm
     )
 }
 
-private fun Throwable.logAndRethrow() {
-    logger.error(this) {}
-    throw this
-}
-
 private fun Throwable.handleException(message: String?) {
     val msg = "Error in response or request name=${this::class.simpleName} errorMessage=${this.message} $message"
-    logger.error(this) { msg }
-    throw CantusException(msg, this)
+    if (this is SourceSystemException) {
+        if (this.message?.contains("MANIFEST_UNKNOWN") == true) logger.info(
+            "The image or image metadata is not present in Docker Registry",
+            this
+        )
+        else logger.error(this) { }
+        throw this
+    } else {
+        logger.error(this) { msg }
+        throw CantusException(msg, this)
+    }
 }
 
 fun <T> ClientResponse.handleStatusCodeError(sourceSystem: String?): Mono<T> {
