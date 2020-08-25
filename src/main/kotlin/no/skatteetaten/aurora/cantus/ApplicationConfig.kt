@@ -6,23 +6,18 @@ import io.netty.handler.timeout.ReadTimeoutHandler
 import io.netty.handler.timeout.WriteTimeoutHandler
 import kotlinx.coroutines.newFixedThreadPoolContext
 import mu.KotlinLogging
-import no.skatteetaten.aurora.filter.logging.AuroraHeaderFilter
-import no.skatteetaten.aurora.filter.logging.RequestKorrelasjon
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
 import org.springframework.context.annotation.Profile
 import org.springframework.http.HttpHeaders
-import org.springframework.http.MediaType
 import org.springframework.http.client.reactive.ReactorClientHttpConnector
-import org.springframework.http.codec.json.Jackson2JsonDecoder
-import org.springframework.http.codec.json.Jackson2JsonEncoder
 import org.springframework.web.reactive.function.client.ExchangeFilterFunction
-import org.springframework.web.reactive.function.client.ExchangeStrategies
 import org.springframework.web.reactive.function.client.WebClient
-import reactor.core.publisher.toMono
+import reactor.kotlin.core.publisher.toMono
 import reactor.netty.http.client.HttpClient
 import reactor.netty.tcp.SslProvider
 import reactor.netty.tcp.TcpClient
@@ -36,7 +31,10 @@ import kotlin.math.min
 
 private val logger = KotlinLogging.logger {}
 
+private const val MAX_ACCEPTED_TOKEN_LENGTH = 11
+
 @Configuration
+@ConfigurationPropertiesScan
 class ApplicationConfig {
 
     @Bean
@@ -50,54 +48,28 @@ class ApplicationConfig {
         @Value("\${spring.application.name}") applicationName: String,
         @Value("\${application.version:}") applicationVersion: String
     ) =
-        builder
-            .defaultHeader(HttpHeaders.USER_AGENT, "cantus/$applicationVersion")
-            .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-            .defaultHeader("KlientID", applicationName)
-            .defaultHeader(AuroraHeaderFilter.KORRELASJONS_ID, RequestKorrelasjon.getId())
-            .exchangeStrategies(exchangeStrategies())
-            .filter(ExchangeFilterFunction.ofRequestProcessor {
+        builder.filter(
+            ExchangeFilterFunction.ofRequestProcessor {
                 val bearer = it.headers()[HttpHeaders.AUTHORIZATION]?.firstOrNull()?.let { token ->
-                    val (name, value) = token.substring(0, min(token.length, 11)).split(" ")
-                    "$name=$value"
+                    val (bearer, tokenValue) = token.substring(0, min(token.length, MAX_ACCEPTED_TOKEN_LENGTH))
+                        .split(" ")
+                    "$bearer=$tokenValue"
                 } ?: ""
+
                 logger.debug("HttpRequest method=${it.method()} url=${it.url()} $bearer")
+
                 it.toMono()
-            })
-            .clientConnector(
-                ReactorClientHttpConnector(
-                    HttpClient
-                        .from(tcpClient)
-                        .compress(true)
-                    //  .wiretap(true) // TODO : REMOVE
-                )
-            ).build()
-
-    private fun exchangeStrategies(): ExchangeStrategies {
-        val objectMapper = createObjectMapper()
-
-        return ExchangeStrategies
-            .builder()
-            .codecs {
-                it.defaultCodecs().jackson2JsonDecoder(
-                    Jackson2JsonDecoder(
-                        objectMapper,
-                        MediaType.valueOf("application/vnd.docker.distribution.manifest.v1+json"),
-                        MediaType.valueOf("application/vnd.docker.distribution.manifest.v1+prettyjws"),
-                        MediaType.valueOf("application/vnd.docker.distribution.manifest.v2+json"),
-                        MediaType.valueOf("application/vnd.docker.container.image.v1+json"),
-                        MediaType.valueOf("application/json")
-                    )
-                )
-                it.defaultCodecs().jackson2JsonEncoder(
-                    Jackson2JsonEncoder(
-                        objectMapper,
-                        MediaType.valueOf("application/json")
-                    )
-                )
             }
-            .build()
-    }
+        ).clientConnector(
+            ReactorClientHttpConnector(
+                HttpClient
+                    .from(tcpClient)
+                    .compress(true)
+            )
+        ).build()
+
+    @Bean
+    fun objectMapper() = createObjectMapper()
 
     @Bean
     fun tcpClient(

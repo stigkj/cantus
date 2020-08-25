@@ -15,7 +15,7 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.newFixedThreadPoolContext
-import no.skatteetaten.aurora.cantus.AuroraIntegration.AuthType.Bearer
+import no.skatteetaten.aurora.cantus.AuroraIntegration
 import no.skatteetaten.aurora.cantus.controller.ImageRepoCommand
 import no.skatteetaten.aurora.cantus.controller.SourceSystemException
 import org.junit.jupiter.api.Test
@@ -31,7 +31,7 @@ class DockerRegistryServiceTest {
         imageName = "whoami",
         imageTag = "2",
         token = "bearer token",
-        authType = Bearer,
+        authType = AuroraIntegration.AuthType.Bearer,
         url = "http://test.com:5000/v2"
     )
 
@@ -40,7 +40,7 @@ class DockerRegistryServiceTest {
     private val objectMapper = jacksonObjectMapper()
 
     private val dtoV2 = ImageManifestResponseDto(
-        contentType = manifestV2,
+        contentType = MANIFEST_V2_MEDIATYPE_VALUE,
         dockerContentDigest = "sha256",
         manifestBody = objectMapper.readTestResourceAsJson("dockerManifestV2.json")
     )

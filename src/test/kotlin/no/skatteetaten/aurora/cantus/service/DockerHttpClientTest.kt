@@ -10,7 +10,9 @@ import assertk.assertions.isFalse
 import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotNull
 import assertk.assertions.isTrue
+import assertk.assertions.matches
 import assertk.assertions.message
+import mu.KotlinLogging
 import no.skatteetaten.aurora.cantus.ApplicationConfig
 import no.skatteetaten.aurora.cantus.AuroraIntegration.AuthType.Bearer
 import no.skatteetaten.aurora.cantus.controller.CantusException
@@ -26,20 +28,21 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.MediaType
 import org.springframework.web.reactive.function.client.WebClient
 import reactor.core.publisher.Mono
-import reactor.core.publisher.toMono
+
+private val logger = KotlinLogging.logger {}
 
 class DockerHttpClientTest {
     private val server = MockWebServer()
     private val url = server.url("/")
 
     private val imageRepoCommand = ImageRepoCommand(
-        registry = "${url.host}:${url.port}",
+        registry = "${url.host()}:${url.port()}",
         imageGroup = "no_skatteetaten_aurora_demo",
         imageName = "whoami",
         imageTag = "2",
         token = "bearer token",
         authType = Bearer,
-        url = "http://${url.host}:${url.port}/v2"
+        url = "http://${url.host()}:${url.port()}/v2"
     )
 
     private val applicationConfig = ApplicationConfig()
@@ -56,9 +59,9 @@ class DockerHttpClientTest {
     @Test
     fun `verify upload layer will retry`() {
 
-        val content: Mono<ByteArray> = "this is teh content".toByteArray().toMono()
+        val content: Mono<ByteArray> = Mono.just("this is teh content".toByteArray())
 
-        val fail = MockResponse().setResponseCode(404)
+        val fail = MockResponse().setResponseCode(500)
         // Any response will do here.
         val response =
             MockResponse()
@@ -76,9 +79,9 @@ class DockerHttpClientTest {
 
     fun `verify upload layer will retry and fail after 4 times`() {
 
-        val content: Mono<ByteArray> = "this is teh content".toByteArray().toMono()
+        val content: Mono<ByteArray> = Mono.just("this is teh content".toByteArray())
 
-        val fail = MockResponse().setResponseCode(404)
+        val fail = MockResponse().setResponseCode(500)
 
         val requests = server.execute(fail, fail, fail, fail) {
             assertThat { httpClient.uploadLayer(imageRepoCommand, "uuid", "digest", content) }
@@ -92,7 +95,7 @@ class DockerHttpClientTest {
 
     @Test
     fun `verify upload layer`() {
-        val content: Mono<ByteArray> = "this is teh content".toByteArray().toMono()
+        val content: Mono<ByteArray> = Mono.just("this is teh content".toByteArray())
 
         // Any response will do here.
         val response =
@@ -109,26 +112,26 @@ class DockerHttpClientTest {
     @Test
     fun `test put manifest failed`() {
 
-        val manifest = ImageManifestResponseDto(manifestV2, "abc", createObjectMapper().readTree("{}"))
+        val manifest = ImageManifestResponseDto(MANIFEST_V2_MEDIATYPE_VALUE, "abc", createObjectMapper().readTree("{}"))
 
-        val response = MockResponse().setResponseCode(404)
+        val response = MockResponse().setResponseCode(500)
             .setBody("{\"errors\":[{\"code\":\"BLOB_UNKNOWN\",\"message\":\"blob unknown to registry\",\"detail\":\"sha256:303510ed0dee065d6dc0dd4fbb1833aa27ff6177e7dfc72881ea4ea0716c82a1\"}]}")
         server.execute(response, response, response, response) {
             assertThat { httpClient.putManifest(imageRepoCommand, manifest) }
                 .isFailure().isNotNull().isInstanceOf(SourceSystemException::class)
                 .message().isNotNull()
-                .contains("cause=NotFound lastError=404 Not Found operation=PUT_MANIFEST")
+                .matches(Regex(".*cause=InternalServerError lastError=500 Internal Server Error from PUT .* operation=PUT_MANIFEST .*"))
         }
     }
 
     @Test
     fun `test digest authentication failed`() {
         val response = MockResponse().setResponseCode(401).setBody("Unauthorized")
-        server.execute(response, response, response, response) {
+        server.execute(response) {
             assertThat { httpClient.digestExistInRepo(imageRepoCommand, "abc") }
                 .isFailure().isNotNull().isInstanceOf(SourceSystemException::class)
                 .message().isNotNull()
-                .contains("cause=Unauthorized lastError=401 Unauthorized operation=BLOB_EXIST")
+                .matches(Regex(".*status=401 UNAUTHORIZED .* operation=BLOB_EXIST.*"))
         }
     }
 
@@ -154,12 +157,12 @@ class DockerHttpClientTest {
 
     @Test
     fun `Verify get upload UUID header`() {
-        val header = "abcas1456"
-        val response = MockResponse().addHeader(uploadUUIDHeader, header)
+        val expectedHeader = "abcas1456"
+        val response = MockResponse().addHeader("Docker-Upload-UUID", expectedHeader)
 
         server.execute(response) {
-            val header = httpClient.getUploadUUID(imageRepoCommand)
-            assertThat(header).isEqualTo(header)
+            val actualHeader = httpClient.getUploadUUID(imageRepoCommand)
+            assertThat(actualHeader).isEqualTo(expectedHeader)
         }
     }
 
@@ -189,7 +192,7 @@ class DockerHttpClientTest {
             MockResponse()
                 .setResponseCode(404)
 
-        server.execute(response, response, response, response) {
+        server.execute(response) {
             assertThat { httpClient.getConfig(imageRepoCommand, "SHA::256") }
                 .isFailure().isNotNull().isInstanceOf(SourceSystemException::class)
         }
@@ -214,7 +217,7 @@ class DockerHttpClientTest {
             MockResponse()
                 .setJsonFileAsBody("dockerManifestV1.json")
                 .addHeader("Docker-Content-Digest", "SHA::256")
-                .setHeader("Content-Type", MediaType.valueOf(manifestV2))
+                .setHeader("Content-Type", MediaType.valueOf(MANIFEST_V2_MEDIATYPE_VALUE))
 
         server.execute(response) {
             val jsonResponse = httpClient.getImageManifest(imageRepoCommand)
@@ -243,7 +246,7 @@ class DockerHttpClientTest {
 
     @Test
     fun `Verify that empty manifest response throws SourceSystemException`() {
-        val response = MockResponse().addHeader(dockerContentDigestLabel, "sha::256")
+        val response = MockResponse().addHeader("Docker-Content-Digest", "sha::256")
 
         server.execute(response) {
             assertThat { httpClient.getImageManifest(imageRepoCommand) }
@@ -255,13 +258,30 @@ class DockerHttpClientTest {
     fun `Verify that non existing Docker-Content-Digest throws SourceSystemException`() {
         val response = MockResponse()
             .setJsonFileAsBody("dockerManifestV1.json")
+            .setHeader("Content-Type", "application/vnd.docker.distribution.manifest.v2+json")
 
         server.execute(response) {
             assertThat { httpClient.getImageManifest(imageRepoCommand) }
                 .isFailure()
                 .isNotNull().isInstanceOf(SourceSystemException::class)
                 .message().isNotNull()
-                .contains("Only v2 manifest is supported. contentType=application/json;charset=UTF-8")
+                .contains("Required header=Docker-Content-Digest is not present")
+        }
+    }
+
+    @Test
+    fun `Verify that wrong content-type throws SourceSystemException`() {
+        val response = MockResponse()
+            .setJsonFileAsBody("dockerManifestV1.json")
+            .setHeader("Content-Type", "application/vnd.docker.distribution.manifest.v1+prettyjws")
+            .addHeader("Docker-Content-Digest", "sha256")
+
+        server.execute(response) {
+            assertThat { httpClient.getImageManifest(imageRepoCommand) }
+                .isFailure()
+                .isNotNull().isInstanceOf(SourceSystemException::class)
+                .message().isNotNull()
+                .contains("Only v2 manifest is supported. contentType=application/vnd.docker.distribution.manifest.v1+prettyjws")
         }
     }
 

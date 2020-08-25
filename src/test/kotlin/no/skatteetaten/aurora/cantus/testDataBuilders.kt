@@ -20,12 +20,10 @@ data class ImageManifestDtoBuilder(val digest: String = "sha") {
     )
 }
 
-data class ImageTagsWithTypeDtoBuilder(val namespace: String, val name: String) {
-    fun build() = ImageTagsWithTypeDto(
-        listOf(
-            ImageTagTypedDto(name = "0"),
-            ImageTagTypedDto(name = "0.0"),
-            ImageTagTypedDto(name = "0.0.0")
-        )
-    )
+data class ImageTagsWithTypeDtoBuilder(
+    val namespace: String = "no_skatteetaten_aurora",
+    val name: String = "whoami",
+    val tags: List<String> = listOf("0", "0.0", "0.0.0")
+) {
+    fun build() = ImageTagsWithTypeDto(tags.map { ImageTagTypedDto(it) })
 }

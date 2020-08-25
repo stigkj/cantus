@@ -5,8 +5,17 @@ info:
         metrics: "{metricsHostname}/dashboard/db/openshift-project-spring-actuator-view-instance?var-ds=openshift-{cluster}-ose&var-namespace={namespace}&var-app={name}&var-instance={podName}"
 
 spring:
+    application:
+        name: cantus
+
     profiles:
         active: local
+
+    codec:
+        max-in-memory-size: 1MB
+
+    zipkin:
+        enabled: false
 
 logging:
     level:
@@ -19,6 +28,14 @@ logging:
                 catalina: WARN
                 velocity: WARN
 
+
+
+aurora:
+    webflux:
+        header:
+            webclient:
+                interceptor:
+                    enabled: true
 integrations:
     docker:
         cluster:
@@ -67,14 +84,12 @@ cantus:
 
 server:
     port: 8080
-    max-http-header-size: 200000
 
 logging:
     level:
     #reactor.netty.http.client.HttpClient: DEBUG # Needs wiretap in ApplicationConfig
     pattern:
         console: "%d [%-9.9thread] %highlight(%-5level) %cyan(%logger:%L) %X - %msg %n%rEx{full}"
-    # add mokey.openshift.token to ~/.spring-boot-devtools.properties
 
 ---
 spring:

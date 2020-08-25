@@ -1,0 +1,17 @@
+##### GET TAGS
+
+GET http://localhost:8080/tags?repoUrl=container-registry-internal-private-pull.aurora.skead.no:443/aurora/openshift-jenkins-slave
+
+##### Get manifest informatioon for a specific tag or sha
+
+POST http://localhost:8080/manifest
+Content-Type: application/json
+
+{
+  "tagUrls": [
+    "container-registry-internal-private-pull.aurora.skead.no:443/aurora/openshift-jenkins-slave/1.0.0",
+    "container-registry-internal-private-pull.aurora.skead.no:443/no_skatteetaten_aurora/cantus/1.1",
+    "container-registry-internal-private-pull.aurora.skead.no:443/no_skatteetaten_aurora/cantus/1.3.1",
+    "container-registry-internal-private-pull.aurora.skead.no:443/no_skatteetaten_aurora/cantus/sha256:4cc1f5baf83ecafabb5a6f699132441bc74e244d7746ed48f980d2966eb75769"
+  ]
+}

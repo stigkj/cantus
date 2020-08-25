@@ -43,7 +43,10 @@ data class ImageRepo(
 )
 
 fun AuroraIntegration.findRegistry(registry: String): AuroraIntegration.DockerRegistry? =
-    this.docker.values.find { it.url == registry && it.isEnabled }
+    this.docker.values.find { it.url == registry && it.enabled }
+
+private const val SIZE_OF_COMPLETE_IMAGE_REPO = 4
+private const val SIZE_OF_IMAGE_REPO_WITHOUT_TAG = 3
 
 @Component
 class ImageRepoCommandAssembler(
@@ -54,17 +57,16 @@ class ImageRepoCommandAssembler(
         bearerToken: String? = null
     ): ImageRepoCommand {
         val imageRepo = url.toImageRepo()
-
         val registry = aurora.findRegistry(imageRepo.registry)
-            ?: throw BadRequestException("Invalid Docker Registry URL url=${imageRepo.registry}")
 
-        if (registry.auth == null)
-            throw BadRequestException("Registry authType is required")
+        require(registry != null) { "Invalid Docker Registry URL url=${imageRepo.registry}" }
+        require(registry.auth != null) { "Registry authType is required" }
 
-        if (registry.auth != AuroraIntegration.AuthType.None && bearerToken.isNullOrBlank())
-            throw BadRequestException("Registry required authentication")
+        require(registry.auth == AuroraIntegration.AuthType.None || bearerToken.isNotNullOrBlank()) {
+            "Registry required authentication"
+        }
 
-        val scheme = if (registry.isHttps) "https://" else "http://"
+        val scheme = if (registry.https) "https://" else "http://"
 
         return ImageRepoCommand(
             registry = imageRepo.registry,
@@ -77,27 +79,34 @@ class ImageRepoCommandAssembler(
         )
     }
 
+    private fun String?.isNotNullOrBlank() = !this.isNullOrBlank()
+
     private fun String.toImageRepo(): ImageRepo {
         val repoVariables = this.split("/")
-        val repoVariablesSize = repoVariables.size
 
-        if (repoVariablesSize < 3 || repoVariablesSize > 4) throw IllegalArgumentException("repo url=$this malformed pattern=url:port/group/name:tag")
-
-        if (repoVariablesSize == 3 && repoVariables[2].contains(":")) {
-            val (name, tag) = repoVariables[2].split(":")
-            return ImageRepo(
-                registry = repoVariables[0],
-                imageGroup = repoVariables[1],
-                imageName = name,
-                imageTag = tag
-            )
+        require(
+            repoVariables.size == SIZE_OF_IMAGE_REPO_WITHOUT_TAG || repoVariables.size ==
+                SIZE_OF_COMPLETE_IMAGE_REPO
+        ) {
+            "repo url=$this malformed pattern=url:port/group/name:tag"
         }
 
-        return ImageRepo(
-            registry = repoVariables[0],
-            imageGroup = repoVariables[1],
-            imageName = repoVariables[2],
-            imageTag = repoVariables.getOrNull(3)
-        )
+        return when {
+            repoVariables.size == SIZE_OF_IMAGE_REPO_WITHOUT_TAG && repoVariables[2].contains(":") -> {
+                val (name, tag) = repoVariables[2].split(":")
+                ImageRepo(
+                    registry = repoVariables[0],
+                    imageGroup = repoVariables[1],
+                    imageName = name,
+                    imageTag = tag
+                )
+            }
+            else -> ImageRepo(
+                registry = repoVariables[0],
+                imageGroup = repoVariables[1],
+                imageName = repoVariables[2],
+                imageTag = repoVariables.getOrNull(3)
+            )
+        }
     }
 }

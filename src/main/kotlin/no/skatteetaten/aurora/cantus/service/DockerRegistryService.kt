@@ -17,10 +17,7 @@ import java.util.HashSet
 private val logger = KotlinLogging.logger {}
 
 @Service
-class DockerRegistryService(
-    val httpClient: DockerHttpClient,
-    val threadPoolContext: ExecutorCoroutineDispatcher
-) {
+class DockerRegistryService(val httpClient: DockerHttpClient, val threadPoolContext: ExecutorCoroutineDispatcher) {
 
     val manifestEnvLabels: HashSet<String> = hashSetOf(
         "AURORA_VERSION",
@@ -39,6 +36,7 @@ class DockerRegistryService(
     /*
        Inspiration from method in the following blogpost https://www.danlorenc.com/posts/containers-part-2/
      */
+
     fun tagImage(from: ImageRepoCommand, to: ImageRepoCommand): Boolean {
 
         val manifest = httpClient.getImageManifest(from)
@@ -82,9 +80,8 @@ class DockerRegistryService(
 
         val environmentVariables = manifestBody.getEnvironmentVariablesFromManifest()
 
-        val imageManifestEnvInformation = environmentVariables
-            .mapKeys { it.key.toUpperCase() }
-            .filter { manifestEnvLabels.contains(it.key) }
+        val imageManifestEnvInformation =
+            environmentVariables.mapKeys { it.key.toUpperCase() }.filter { manifestEnvLabels.contains(it.key) }
 
         val dockerVersion = manifestBody.getVariableFromManifestBody(dockerVersionLabel)
         val created = manifestBody.getVariableFromManifestBody(createdLabel)
@@ -115,22 +112,19 @@ class DockerRegistryService(
         val dockerResponse = httpClient.getImageManifest(imageRepoCommand)
 
         return imageManifestResponseToImageManifest(
-            imageRepoCommand = imageRepoCommand,
-            imageManifestResponse = dockerResponse
+            imageRepoCommand = imageRepoCommand, imageManifestResponse = dockerResponse
         )
     }
 
-    fun getImageTags(
-        imageRepoCommand: ImageRepoCommand,
-        filter: String? = null
-    ): ImageTagsWithTypeDto {
+    fun getImageTags(imageRepoCommand: ImageRepoCommand, filter: String? = null): ImageTagsWithTypeDto {
 
         val url = imageRepoCommand.registry
         val tagsResponse = httpClient.getImageTags(imageRepoCommand)
 
         if (tagsResponse == null || tagsResponse.tags.isEmpty()) {
             throw SourceSystemException(
-                message = "Resource could not be found status=${HttpStatus.NOT_FOUND.value()} message=${HttpStatus.NOT_FOUND.reasonPhrase}",
+                message = "Resource could not be found status=" +
+                    "${HttpStatus.NOT_FOUND.value()} message=${HttpStatus.NOT_FOUND.reasonPhrase}",
                 sourceSystem = url
             )
         }
@@ -138,14 +132,11 @@ class DockerRegistryService(
             tagsResponse.tags.filter { it.toLowerCase().contains(f.toLowerCase()) }
         } ?: tagsResponse.tags
 
-        return ImageTagsWithTypeDto(tags = filteredTags.map {
-            ImageTagTypedDto(it)
-        })
+        return ImageTagsWithTypeDto(filteredTags.map { ImageTagTypedDto(it) })
     }
 }
 
-private fun JsonNode.getEnvironmentVariablesFromManifest() =
-    this.at("/config/Env").associate {
-        val (key, value) = it.asText().split("=")
-        key to value
-    }
+private fun JsonNode.getEnvironmentVariablesFromManifest() = this.at("/config/Env").associate {
+    val (key, value) = it.asText().split("=")
+    key to value
+}

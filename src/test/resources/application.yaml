@@ -11,14 +11,6 @@ logging:
     pattern:
         console: "%d [%thread] %-5level %logger:%L %X - %msg %n%rEx{full}"
 
-cantus:
-    docker:
-        url: "docker.com"
-        urlsallowed: "docker.com,noBearerToken.com,allowedurl.no"
-        internal:
-            urls: "docker.com,vg.no"
-
-
 integrations:
     docker:
         test1:
@@ -31,3 +23,7 @@ integrations:
         test3:
             url: allowedurl.no
             https: true
+        test4:
+            url: url
+            https: false
+            auth: None

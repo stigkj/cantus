@@ -2,62 +2,103 @@ package no.skatteetaten.aurora.cantus.controller
 
 import io.netty.handler.timeout.ReadTimeoutException
 import mu.KotlinLogging
-import org.springframework.web.reactive.function.client.ClientResponse
+import org.springframework.web.reactive.function.UnsupportedMediaTypeException
 import org.springframework.web.reactive.function.client.WebClientResponseException
-import org.springframework.web.reactive.function.client.bodyToMono
+import reactor.core.Exceptions
 import reactor.core.publisher.Mono
-import reactor.core.publisher.toMono
-import reactor.retry.RetryExhaustedException
-import reactor.retry.retryExponentialBackoff
+import reactor.kotlin.core.publisher.toMono
+import reactor.util.retry.Retry
 import java.time.Duration
 
-private const val blockTimeout: Long = 300
+private const val BLOCK_TIMEOUT: Long = 300
 private val logger = KotlinLogging.logger {}
+
+fun <T> Mono<T>.retryWithLog(
+    retryConfiguration: RetryConfiguration,
+    ignoreAllWebClientResponseException: Boolean = false,
+    context: String = ""
+): Mono<T> {
+    if (retryConfiguration.times == 0L) {
+        return this
+    }
+
+    return this.retryWhen(
+        Retry.backoff(retryConfiguration.times, retryConfiguration.min)
+            .maxBackoff(retryConfiguration.max)
+            .filter {
+                logger.trace(it) {
+                    "retryWhen called with exception ${it?.javaClass?.simpleName}, message: ${it?.message}"
+                }
+
+                if (ignoreAllWebClientResponseException) {
+                    it !is WebClientResponseException
+                } else {
+                    (it.isServerError() || it !is WebClientResponseException) && it !is UnsupportedMediaTypeException
+                }
+            }.doBeforeRetry {
+                logger.debug {
+                    val e = it.failure()
+                    val msg = "Retrying failed request times=${it.totalRetries()}, context=$context " +
+                        "errorType=${e.javaClass.simpleName} errorMessage=${e.message}"
+                    if (e is WebClientResponseException) {
+                        "$msg, method=${e.request?.method} uri=${e.request?.uri}"
+                    } else {
+                        msg
+                    }
+                }
+            }
+    )
+}
+
+data class RetryConfiguration(
+    var times: Long = 3L,
+    var min: Duration = Duration.ofMillis(100),
+    var max: Duration = Duration.ofSeconds(1)
+)
+
+private fun Throwable.isServerError() =
+    this is WebClientResponseException && this.statusCode.is5xxServerError
 
 fun <T : Any?> Mono<T>.blockAndHandleErrorWithRetry(
     message: String,
     imageRepoCommand: ImageRepoCommand? = null,
-    duration: Duration = Duration.ofSeconds(blockTimeout)
+    duration: Duration = Duration.ofSeconds(BLOCK_TIMEOUT)
 ) =
-    this.retryRepoCommand(message).blockAndHandleError(duration, imageRepoCommand = imageRepoCommand, message = message)
-
-fun <T : Any?> Mono<T>.retryRepoCommand(message: String) = this.retryExponentialBackoff(
-    times = 3,
-    first = Duration.ofMillis(100),
-    max = Duration.ofSeconds(1)
-) {
-    val e = it.exception()
-    val exceptionClass = e::class.simpleName
-    if (it.iteration() == 3L) {
-        logger.warn {
-            "Retry=last $message exception=$exceptionClass message=${e.localizedMessage}"
-        }
-    } else {
-        logger.info {
-            "Retry=${it.iteration()} $message exception=$exceptionClass message=\"${e.message}\""
-        }
-    }
-}
+    this.retryWithLog(RetryConfiguration(), context = message)
+        .blockAndHandleError(duration, imageRepoCommand = imageRepoCommand, message = message)
 
 fun <T> Mono<T>.blockAndHandleError(
-    duration: Duration = Duration.ofSeconds(blockTimeout),
+    duration: Duration = Duration.ofSeconds(BLOCK_TIMEOUT),
     imageRepoCommand: ImageRepoCommand? = null,
     message: String? = null
 ) =
-    this.handleError(imageRepoCommand, message).toMono().block(duration)
+    this.handleError(imageRepoCommand, message).toMono<T>().block(duration)
 
 // TODO: Se på error handling i hele denne filen
 fun <T> Mono<T>.handleError(imageRepoCommand: ImageRepoCommand?, message: String? = null) =
     this.doOnError {
-        when (it) {
-            is WebClientResponseException -> it.handleException(imageRepoCommand, message)
-            is ReadTimeoutException -> it.handleException(imageRepoCommand, message)
-            is RetryExhaustedException -> it.handleException(imageRepoCommand, message)
+        when {
+            Exceptions.isRetryExhausted(it) -> it.handleException(imageRepoCommand, message)
+            it is WebClientResponseException -> it.handleException(imageRepoCommand, message)
+            it is ReadTimeoutException -> it.handleException(imageRepoCommand, message)
+            it is UnsupportedMediaTypeException -> it.handleException(imageRepoCommand, message)
             else -> it.handleException(message)
         }
     }
 
-private fun RetryExhaustedException.handleException(imageRepoCommand: ImageRepoCommand?, message: String?) {
+private fun UnsupportedMediaTypeException.handleException(imageRepoCommand: ImageRepoCommand?, message: String?) {
+    logger.info {
+        "Old image manfiest detected for image=${imageRepoCommand?.artifactRepo}:${imageRepoCommand?.imageTag}"
+    }
+
+    throw SourceSystemException(
+        message = "Only v2 manifest is supported. contentType=${this.contentType} " +
+            "image=${imageRepoCommand?.artifactRepo}:${imageRepoCommand?.imageTag}",
+        sourceSystem = imageRepoCommand?.registry
+    )
+}
+
+private fun Throwable.handleException(imageRepoCommand: ImageRepoCommand?, message: String?) {
     val cause = this.cause!!
     val msg =
         "Retry failed after 4 attempts cause=${cause::class.simpleName} lastError=${cause.localizedMessage} $message"
@@ -71,7 +112,8 @@ private fun RetryExhaustedException.handleException(imageRepoCommand: ImageRepoC
 
 private fun WebClientResponseException.handleException(imageRepoCommand: ImageRepoCommand?, message: String?) {
     val msg =
-        "Error in response, status=$statusCode message=$statusText body=\"${this.responseBodyAsString}\" request_url=\"${this.request?.uri}\" request_method=\"${this.request?.method?.toString()}\" $message"
+        "Error in response, status=$statusCode message=$statusText body=\"${this.responseBodyAsString}\" " +
+            "request_url=\"${this.request?.uri}\" request_method=\"${this.request?.method?.toString()}\" $message"
     logger.warn { msg }
     throw SourceSystemException(
         message = msg,
@@ -82,7 +124,8 @@ private fun WebClientResponseException.handleException(imageRepoCommand: ImageRe
 
 private fun ReadTimeoutException.handleException(imageRepoCommand: ImageRepoCommand?, message: String?) {
     val imageMsg = imageRepoCommand?.let { cmd ->
-        "registry=\"${cmd.registry}\" imageGroup=\"${cmd.imageGroup}\" imageName=\"${cmd.imageName}\" imageTag=\"${cmd.imageTag}\""
+        "registry=\"${cmd.registry}\" imageGroup=\"${cmd.imageGroup}\" imageName=\"${cmd.imageName}\" " +
+            "imageTag=\"${cmd.imageTag}\""
     } ?: "no existing ImageRepoCommand"
     val msg = "Timeout when calling docker registry, $imageMsg $message"
     logger.warn { msg }
@@ -105,17 +148,5 @@ private fun Throwable.handleException(message: String?) {
     } else {
         logger.error(this) { msg }
         throw CantusException(msg, this)
-    }
-}
-
-fun <T> ClientResponse.handleStatusCodeError(sourceSystem: String?): Mono<T> {
-    val statusCode = this.statusCode()
-    return this.bodyToMono<String>().switchIfEmpty(Mono.just("")).flatMap { body ->
-        Mono.error<T>(
-            SourceSystemException(
-                message = "body=$body status=${statusCode.value()} message=${statusCode.reasonPhrase}",
-                sourceSystem = sourceSystem
-            )
-        )
     }
 }

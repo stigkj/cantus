@@ -30,13 +30,13 @@ class DockerHttpClientNetworkTest {
     private val url = server.url("/")
 
     private val imageRepoCommand = ImageRepoCommand(
-        registry = "${url.host}:${url.port}",
+        registry = "${url.host()}:${url.port()}",
         imageGroup = "no_skatteetaten_aurora_demo",
         imageName = "whoami",
         imageTag = "2",
         token = "bearer token",
         authType = Bearer,
-        url = "http://${url.host}:${url.port}/v2"
+        url = "http://${url.host()}:${url.port()}/v2"
     )
 
     private val applicationConfig = ApplicationConfig()
@@ -62,7 +62,7 @@ class DockerHttpClientNetworkTest {
         val mockResponse = MockResponse()
             .setResponseCode(statusCode)
             .addHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-            .addHeader(dockerContentDigestLabel, "sha256")
+            .addHeader("Docker-Content-Digest", "sha256")
 
         server.execute(mockResponse) {
             assertThat { httpClient.getImageManifest(imageRepoCommand) }
@@ -103,7 +103,7 @@ class DockerHttpClientNetworkTest {
 
         val response = MockResponse()
             .setJsonFileAsBody("dockerManifestV1.json")
-            .addHeader(dockerContentDigestLabel, "SHA::256")
+            .addHeader("Docker-Content-Digest", "SHA::256")
             .apply { this.socketPolicy = socketPolicy }
 
         server.execute(response) {

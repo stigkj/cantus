@@ -20,3 +20,8 @@ class SourceSystemException(
     cause: Throwable? = null,
     val sourceSystem: String? = null
 ) : CantusException(message, cause)
+
+class RequestResultException(
+    val repoUrl: String,
+    cause: Throwable? = null
+) : RuntimeException("", cause)
