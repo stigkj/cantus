@@ -12,6 +12,7 @@ def overrides = [
     versionStrategy: [
       [ branch: 'master', versionHint: '1' ]
     ],
+    compilePropertiesIq:  '-x asciidoctor',
     docs: false
 ]
 
