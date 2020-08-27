@@ -24,7 +24,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.http.HttpHeaders
-import org.springframework.http.HttpStatus
 import org.springframework.test.web.servlet.MockMvc
 
 private const val defaultTestRegistry: String = "docker.com"
@@ -115,23 +114,6 @@ class DockerRegistryControllerContractTest {
         mockMvc.get(Path("/tags?repoUrl={registryUrl}/{namespace}/{name}", defaultTestRegistry, "namespace", "name")) {
             statusIsOk()
                 .responseJsonPath("$.successCount").equalsValue(7)
-        }
-    }
-
-    @Test
-    fun `Get docker registry image tags with GET given missing resource`() {
-
-        every {
-            dockerService.getImageTags(any(), any())
-        } throws SourceSystemException(
-            message = "Resource could not be found status=${HttpStatus.NOT_FOUND} message=${HttpStatus.NOT_FOUND.reasonPhrase}",
-            sourceSystem = "https://docker.com"
-        )
-
-        mockMvc.get(Path("/tags?repoUrl=url/namespace/missing")) {
-            statusIsOk()
-                .responseJsonPath("$.failureCount").equalsValue(1)
-                .responseJsonPath("$.failure[0].errorMessage").contains(HttpStatus.NOT_FOUND.name)
         }
     }
 }

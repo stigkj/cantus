@@ -57,6 +57,23 @@ class DockerRegistryControllerTest {
     private val tags = ImageTagsWithTypeDtoBuilder("no_skatteetaten_aurora_demo", "whoami").build()
 
     @Test
+    fun `Get docker registry image tags with GET given missing resource`() {
+
+        every {
+            dockerService.getImageTags(any(), any())
+        } throws SourceSystemException(
+            message = "Resource could not be found status=${HttpStatus.NOT_FOUND} message=${HttpStatus.NOT_FOUND.reasonPhrase}",
+            sourceSystem = "https://docker.com"
+        )
+
+        mockMvc.get(Path("/tags?repoUrl=url/namespace/missing")) {
+            statusIsOk()
+                .responseJsonPath("$.failureCount").equalsValue(1)
+                .responseJsonPath("$.failure[0].errorMessage").contains(HttpStatus.NOT_FOUND.name)
+        }
+    }
+
+    @Test
     fun `Get request given invalid repoUrl throw IllegalArgumentException when missing registryUrl`() {
         val path = "/tags?repoUrl=no_skatteetaten_aurora_demo/whaomi"
         val repoUrl = path.split("=")[1]
