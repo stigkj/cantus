@@ -28,7 +28,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.9")
 
     // Testing
-    testImplementation("no.skatteetaten.aurora:mockmvc-extensions-kotlin:1.1.3")
+    testImplementation("no.skatteetaten.aurora:mockmvc-extensions-kotlin:1.1.4")
     testImplementation("io.mockk:mockk:1.10.0")
     testImplementation("com.willowtreeapps.assertk:assertk-jvm:0.22")
     testImplementation("com.ninja-squad:springmockk:2.0.3")
