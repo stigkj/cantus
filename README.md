@@ -7,7 +7,7 @@ The component is named after Cantus the Minstrel from the TV-show Fraggle Rock (
 
 To be able to run and make calls to Cantus you have to define variables in the file .spring-boot-devtools.properties located in the home folder.
 
-The variables nedded are :
+The variables needed are:
 - cantus.docker.urlsallowed = localhost, test (whitelist for docker registry urls)
 - cantus.docker.internal.urls = localhost (Cantus adds token to header if internal and uses https if it is not internal)
 
